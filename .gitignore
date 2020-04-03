@@ -1,3 +1,4 @@
 *.ozf
 Basics/tester.oz
+!Basics/PlayerBasicAI.ozf
 temp.txt

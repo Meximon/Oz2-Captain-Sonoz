@@ -72,11 +72,12 @@ in
     end
 
     fun{Dive State}
-        {System.show 'Coucou'}
+        {System.show State}
         State
     end
 
     fun{ChargeItem State ID KindItem}
+
         State
     end
 
