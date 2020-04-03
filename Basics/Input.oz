@@ -20,6 +20,10 @@ export
    minDistanceMissile:MinDistanceMissile
    maxDistanceMissile:MaxDistanceMissile
    guiDelay:GUIDelay
+
+   logger:Logger
+import
+	System
 define
    IsTurnByTurn
    NRow
@@ -41,7 +45,32 @@ define
    MinDistanceMissile
    MaxDistanceMissile
    GUIDelay
+	
+   LoggerClass
+   Logger
 in
+
+%%% LOG %%%
+
+
+class LoggerClass
+	attr isLog
+	meth init(Value)
+		isLog := Value
+	end
+	meth debug(Args)
+		{System.show Args}
+	end
+	meth warning(Args)
+		{System.show Args}
+	end
+	meth err(Args)
+		{System.show Args}
+	end
+end
+
+Logger = {New LoggerClass init(true)}
+
 
 %%%% Style of game %%%%
 
