@@ -55,19 +55,41 @@ in
     %%%
     %This section contains all the characteristic functions of player. They MUST return
     %a State that has been updated.
-    fun{InitPosition State ID Position} X Y in
+    fun{InitPosition State ID Position} X Y Return in
         X = {OS.rand} mod Input.nRow +1
         Y = {OS.rand} mod Input.nColumn +1
 
         if{IsIsland X Y} then
         {InitPosition State ID Position}
         else
-        {AdjoinList State [x#X y#Y]} end %IfElseEnd
+        Position = pt(x:X y:Y)
+        Return = {AdjoinList State [pos#Position]}
+        ID = Return.id
+        {System.show Return}
+        Return
+        end %IfElseEnd
     end %Fun InitPostion end
 
 
-
+    /* Note that InitPosition and move are the movements made by the player.
+    Here, I implement them moving in a random way. The moving algorithm has to be optimised
+    in order to win the game instead of just randomly moving */
     fun{Move State ID Position Direction}
+        RandomInt ReturnState Newpos in
+        RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
+        %{System.show RandomInt}
+        /* 0-1-2-3 NORTH EAST SOUTH WEST */
+        case RandomInt of
+        0 then
+            Direction = north
+            Newpos = pt(x: State.pos.x y: State.pos.y)
+            ReturnState = {AdjoinList State pos#[Newpos]}
+        []1 then
+        [] 2 then
+        [] 3 then
+        else skip
+        end %end of case
+
         State
     end
 
