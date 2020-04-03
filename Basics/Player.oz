@@ -205,7 +205,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(id:ID hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
+        State = playerstate(id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
         thread {TreatStream Stream State} end
         Port
 
