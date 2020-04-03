@@ -45,7 +45,7 @@ define
    MinDistanceMissile
    MaxDistanceMissile
    GUIDelay
-	
+
    LoggerClass
    Logger
 in
@@ -101,7 +101,7 @@ Logger = {New LoggerClass init(true)}
 %%%% Players description %%%%
 
    NbPlayer = 2
-   Players = [player1 player2]
+   Players = [playerBasicAi playerBasicAi]
    Colors = [yellow green]
 
 %%%% Thinking parameters (only in simultaneous) %%%%
