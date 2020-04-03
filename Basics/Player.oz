@@ -12,7 +12,9 @@ define
 
 
     %Custom functions
+    Logger = Input.logger
     IsIsland
+    RandomNoIsland
 
 
     %The following functions receive a playerstate and return an updated playerstate
@@ -36,7 +38,7 @@ in
     */
         case Stream
         of
-        nil then {System.showInfo '[Player.oz] Treatstream end of stream'}
+        nil then {Logger debug('[Player.oz] Treatstream end of stream')}
         []initPosition(ID Position)|T then {TreatStream T {InitPosition State ID Position}}
         []move(ID Position Direction)|T then {TreatStream T {Move State ID Position Direction}}
         []dive|T then {TreatStream T {Dive State}}
@@ -48,27 +50,32 @@ in
         []saySurface(ID)|T then {TreatStream T {SaySurface State ID}}
         []sayCharge(ID KindItem)|T then {TreatStream T {SayCharge State ID KindItem}}
         []sayMinePlaced(ID)|T then {TreatStream T {SayMinePlaced State ID}}
-        else skip
+        else {Logger err('[Player.oz] Treatstream illegal record')}
         end %Case end
     end %Proc Treatstream end
 
     %%%
     %This section contains all the characteristic functions of player. They MUST return
     %a State that has been updated.
-    fun{InitPosition State ID Position} X Y Return in
-        X = {OS.rand} mod Input.nRow +1
-        Y = {OS.rand} mod Input.nColumn +1
-
-        if{IsIsland X Y} then
-        {InitPosition State ID Position}
-        else
-        Position = pt(x:X y:Y)
+    fun{InitPosition State ID Position} Return in
+        Position = {RandomNoIsland}
         Return = {AdjoinList State [pos#Position]}
         ID = Return.id
-        {System.show Return}
         Return
-        end %IfElseEnd
     end %Fun InitPostion end
+
+    fun{RandomNoIsland}
+        X Y
+        in
+        X = {OS.rand} mod Input.nRow +1
+        Y = {OS.rand} mod Input.nColumn +1
+        if{IsIsland X Y} then
+        {RandomNoIsland}
+        else
+        pt(x:X y:Y)
+        end
+    end
+
 
 
     /* Note that InitPosition and move are the movements made by the player.
@@ -82,37 +89,81 @@ in
         case RandomInt of
         0 then
             Direction = north
-            Newpos = pt(x: State.pos.x y: State.pos.y)
-            ReturnState = {AdjoinList State pos#[Newpos]}
+            Newpos = pt(x: State.pos.x y:State.pos.y-1)
+            ReturnState = {AdjoinList State [pos#Newpos]}
         []1 then
+            Direction = east
+            Newpos = pt(x: State.pos.x+1 y: State.pos.y)
+            ReturnState = {AdjoinList State [pos#Newpos]}
         [] 2 then
+            Direction= south
+            Newpos = pt(x: State.pos.x y: State.pos.y+1)
+            ReturnState = {AdjoinList State [pos#Newpos]}
         [] 3 then
-        else skip
+            Direction = west
+            Newpos = pt(x: State.pos.x-1 y: State.pos.y)
+            ReturnState = {AdjoinList State [pos#Newpos]}
         end %end of case
 
-        State
+        /* Now binding ID and Position to the position chosen. Direction was already bound */
+        ID = ReturnState.id
+        Position=ReturnState.pos
+        ReturnState
     end
 
     fun{Dive State}
-        {System.show State}
-        State
+        {AdjoinList State [underwater#true]}
     end
 
     fun{ChargeItem State ID KindItem}
-
-        State
+        /* This function gets to charge ONE item and has to choose which one.
+        For testing purpose, we'll only charge the sonar in this player. */
+        ReturnState SonarCharge in
+        SonarCharge = State.sonarcharge
+        if SonarCharge+1 == Input.sonar then
+            ReturnState = {AdjoinList State [sonarcharge#SonarCharge+1]}
+            KindItem=sonar
+        elseif SonarCharge+1>Input.sonar then
+            ReturnState = State
+            KindItem = sonar
+        else
+            ReturnState = {AdjoinList State [sonarcharge#SonarCharge+1]}
+            KindItem = null
+        end
+        ID = ReturnState.id
+        {System.show ReturnState}
+        ReturnState
     end
 
-    fun{FireItem State ID Kindfire}
+    fun{FireItem State ID KindFire}
+        ReturnState in
+        if State.missilecharge == Input.missile then
+            KindFire = missile({RandomNoIsland})
+            ReturnState = {AdjoinList State [missilecharge#0]}
+
+        elseif State.minecharge == Input.mine then
+            KindFire = mine({RandomNoIsland})
+            ReturnState = {AdjoinList State [minecharge#0]}
+        elseif State.sonarcharge == Input.sonar then
+            KindFire = sonar
+            ReturnState = {AdjoinList State [sonarcharge#0]}
+        elseif State.dronecharge = Input.drone then
+            KindFire = drone
+            ReturnState = {AdjoinList State [drone#0]}
+        end
+        ID = ReturnState.id
+        ReturnState = State
         State
     end
 
     fun{FireMine State ID Mine}
+        {Logger debug('Not implemented')}
         State
     end
 
     fun{IsDead State Answer}
-        State
+            if(State.hp<1) then Answer = true else Answer = false end
+            State
     end
 
     fun{SayMove State ID Direction}
