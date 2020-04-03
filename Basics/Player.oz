@@ -59,15 +59,11 @@ in
         X = {OS.rand} mod Input.nRow +1
         Y = {OS.rand} mod Input.nColumn +1
 
-        if{IsIsland X Y} then {InitPosition State ID Position} else
-        %AdjoinList adds or replaces a value in a record
-        {System.show State}
-        {System.show {AdjoinList State [x#X y#Y]}}
-        {AdjoinList State [x#X y#Y]} end
-
-
-
-    end %Fun init end
+        if{IsIsland X Y} then
+        {InitPosition State ID Position}
+        else
+        {AdjoinList State [x#X y#Y]} end %IfElseEnd
+    end %Fun InitPostion end
 
 
 
