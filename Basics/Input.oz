@@ -59,13 +59,19 @@ class LoggerClass
 		isLog := Value
 	end
 	meth debug(Args)
-		{System.show Args}
+		if @isLog then
+			{System.show Args}
+		end
 	end
 	meth warning(Args)
-		{System.show Args}
+		if @isLog then
+			{System.show Args}
+		end
 	end
 	meth err(Args)
-		{System.show Args}
+		if @isLog then
+			{System.show Args}
+		end
 	end
 end
 
