@@ -3,6 +3,7 @@ import
     GUI
     Input
     PlayerManager
+    /* Application */
     /* System */
 
 define
@@ -141,57 +142,69 @@ define
                 of null then % No fire
                     NextState = State
                 [] missile(Position) then % Explode a missile at postion {Position}
-                    proc{TreatMissileMessage MissileState PlayersToBroadcast ?NextMissileState}
+                    proc{TreatMissileMessage MissileState PlayersToBroadcast N ?NextMissileState}
                         case PlayersToBroadcast
                         of nil then % No more player to treat
                             NextMissileState = MissileState
                         [] H|T then % Next player
-                            ReceivedMessage
-                            in
-                            {Send H sayMissileExplode(ID_Fire Position ReceivedMessage)}
-                            {Wait ReceivedMessage}
-                            {Logger debug(sayMissileExplode(position:Position message:ReceivedMessage))}
-                            case ReceivedMessage
-                            of null then % No damage for submarine {H}, continue
-                                NextMissileState = {TreatMissileMessage MissileState T}
-                            [] sayDeath(ID_Death) then % The submarine {ID_Death} is dead
-                                UpdatedPlayerState
-                                UpdatedMissileState
+                            if MissileState.N.dead then % Check if is dead
+                                NextMissileState = {TreatMissileMessage MissileState T N+1}
+                            else
+                                ReceivedMessage
                                 in
-                                UpdatedPlayerState = {Record.adjoinList MissileState.ID_Death [dead#true]}
-                                {Broadcast sayDeath(ID_Death) PlayersList}
-                                {Send GUIPORT removePlayer(ID_Death)}
-                                UpdatedMissileState = {Record.adjoinList MissileState [alives#MissileState.alives-1 ID_Death.id#UpdatedPlayerState]}
-                                NextMissileState = {TreatMissileMessage UpdatedMissileState T}
-                            [] sayDamageTaken(ID_Damage Damage LifeLeft) then % The submarine {ID_Damage} get {Damage} damage
-                                {Broadcast sayDamageTaken(ID_Damage Damage LifeLeft) PlayersList}
-                                {Send GUIPORT lifeUpdate(ID_Damage LifeLeft)}
-                                NextMissileState = {TreatMissileMessage MissileState T}
-                            else % Message not supported
-                                {Logger warning(warning(message:ReceivedMessage warn:'sayMissileExplode, received message not understood'))}
-                                NextMissileState = {TreatMissileMessage MissileState T}
+                                {Send H sayMissileExplode(ID_Fire Position ReceivedMessage)}
+                                {Wait ReceivedMessage}
+                                {Logger debug(sayMissileExplode(position:Position message:ReceivedMessage))}
+                                case ReceivedMessage
+                                of null then % No damage for submarine {H}, continue
+                                    NextMissileState = {TreatMissileMessage MissileState T N+1}
+                                [] sayDeath(ID_Death) then % The submarine {ID_Death} is dead
+                                    UpdatedPlayerState
+                                    UpdatedMissileState
+                                    Nplayer
+                                    in
+                                    Nplayer = ID_Death.id
+                                    UpdatedPlayerState = {Record.adjoinList MissileState.Nplayer [dead#true]}
+                                    {Logger debug(updatedPlayerState(UpdatedPlayerState))}
+                                    {Broadcast sayDeath(ID_Death) PlayersList}
+                                    {Send GUIPORT removePlayer(ID_Death)}
+                                    UpdatedMissileState = {Record.adjoinList MissileState [alives#MissileState.alives-1 Nplayer#UpdatedPlayerState]}
+                                    {Logger debug(updatedMissileState(UpdatedMissileState))}
+                                    NextMissileState = {TreatMissileMessage UpdatedMissileState T N+1}
+                                [] sayDamageTaken(ID_Damage Damage LifeLeft) then % The submarine {ID_Damage} get {Damage} damage
+                                    {Broadcast sayDamageTaken(ID_Damage Damage LifeLeft) PlayersList}
+                                    {Send GUIPORT lifeUpdate(ID_Damage LifeLeft)}
+                                    NextMissileState = {TreatMissileMessage MissileState T N+1}
+                                else % Message not supported
+                                    {Logger warning(warning(message:ReceivedMessage warn:'sayMissileExplode, received message not understood'))}
+                                    NextMissileState = {TreatMissileMessage MissileState T N+1}
+                                end
                             end
                         end
                     end
                     in
-                    NextState = {TreatMissileMessage State PlayersList}
+                    NextState = {TreatMissileMessage State PlayersList 1}
                 [] mine(Position) then % Treat a placed mine
                     {Broadcast sayMinePlaced(ID_Fire) PlayersList}
                     {Send GUIPORT putMine(ID_Fire Position)}
                     NextState = State
                 [] drone(Type Position) then
-                    proc{TreatDroneMessage PlayersToBroadcast}
+                    proc{TreatDroneMessage PlayersToBroadcast N}
                         case PlayersToBroadcast
                         of nil then % No more player to treat
                             skip
                         [] H|T then
-                            ID_Passing_Drone Is_Under_Drone
-                            in
-                            {Send H sayPassingDrone(drone(Type Position) ID_Passing_Drone Is_Under_Drone)} % Ask the player {H} if is under the drone
-                            {Wait ID_Passing_Drone} {Wait Is_Under_Drone}
-                            {Logger debug(isUnderDrone(player:ID_Passing_Drone isUnder:Is_Under_Drone drone:drone(Type Position)))}
-                            {Send Player sayAnswerDrone(drone(Type Position) ID_Passing_Drone Is_Under_Drone)} % Tell the player {Player} if the player {H} is under the drone
-                            {TreatDroneMessage T} % Next player
+                            if State.N.dead then
+                                {TreatDroneMessage T N+1}
+                            else
+                                ID_Passing_Drone Is_Under_Drone
+                                in
+                                {Send H sayPassingDrone(drone(Type Position) ID_Passing_Drone Is_Under_Drone)} % Ask the player {H} if is under the drone
+                                {Wait ID_Passing_Drone} {Wait Is_Under_Drone}
+                                {Logger debug(isUnderDrone(player:ID_Passing_Drone isUnder:Is_Under_Drone drone:drone(Type Position)))}
+                                {Send Player sayAnswerDrone(drone(Type Position) ID_Passing_Drone Is_Under_Drone)} % Tell the player {Player} if the player {H} is under the drone
+                                {TreatDroneMessage T N+1} % Next player
+                            end
                         end
                     end
                     in
@@ -200,35 +213,40 @@ define
                         if Position > Input.nRow then % Too big for the map
                             {Logger warning(warning(id:ID_Fire rowAsked:Position nRowMap:Input.nRow warn:'Row asked for a drone too big for the map'))}
                         else
-                            {TreatDroneMessage PlayersList}
+                            {TreatDroneMessage PlayersList 1}
                         end
                     [] column then
                         if Position > Input.nColumn then % Too big for the map
                             {Logger warning(warning(id:ID_Fire columnAsked:Position nColumnMap:Input.nRow warn:'Column asked for a drone too big for the map'))}
                         else
-                            {TreatDroneMessage PlayersList}
+                            {TreatDroneMessage PlayersList 1}
                         end
                     else
                         {Logger warning(warning(id:ID_Fire droneType:Type warn:'drone type not understood'))}
                     end
                     NextState = State
                 [] sonar then
-                    proc{TreatSonarMessage PlayersToBroadcast}
+                    proc{TreatSonarMessage PlayersToBroadcast N}
                         case PlayersToBroadcast
                         of nil then % No more player to treat
                             skip
                         [] H|T then
-                            ID_Passing_Sonar Position_Sonar
-                            in
-                            {Send H sayPassingSonar(ID_Passing_Sonar Position_Sonar)} % Ask the player {H} for a sonar
-                            {Wait ID_Passing_Sonar} {Wait Position_Sonar}
-                            {Logger debug(id:ID_Passing_Sonar answer:Position_Sonar)}
-                            {Send Player sayAnswerSonar(ID_Passing_Sonar Position_Sonar)} % Tell the player {Player} if the player {H} is under the drone
-                            {TreatSonarMessage T} % Next player
+                            if State.N.dead then
+                                {TreatSonarMessage T N+1} % Next player
+                            else
+                                ID_Passing_Sonar Position_Sonar
+                                in
+                                {Send H sayPassingSonar(ID_Passing_Sonar Position_Sonar)} % Ask the player {H} for a sonar
+                                {Wait ID_Passing_Sonar} {Wait Position_Sonar}
+                                {Logger debug(sayPassingSonar(ID_Passing_Sonar Position_Sonar))}
+                                {Send Player sayAnswerSonar(ID_Passing_Sonar Position_Sonar)} % Tell the player {Player} if the player {H} is under the drone
+                                {TreatSonarMessage T N+1} % Next player
+                            end
                         end
                     end
                     in
-                    {TreatSonarMessage PlayersList}
+                    {TreatSonarMessage PlayersList 1}
+                    NextState = State
                 else
                     NextState = State
                 end
@@ -248,40 +266,48 @@ define
                 of null then % No mine to explode
                     NextState = State
                 [] Position then
-                    proc{TreatMineMessage MineState PlayersToBroadcast ?NextMineState}
+                    proc{TreatMineMessage MineState PlayersToBroadcast N ?NextMineState}
                         case PlayersToBroadcast
                         of nil then % No more player to treat
                             NextMineState = MineState
                         [] H|T then % Next player
-                            ReceivedMessage
-                            in
-                            {Send H sayMineExplode(ID Position ReceivedMessage)}
-                            {Wait ReceivedMessage}
-                            {Logger debug(sayMineExplode(position:Position message:ReceivedMessage))}
-                            case ReceivedMessage
-                            of null then % No damage for submarine {H}, continue
-                                NextMineState = {TreatMineMessage MineState T}
-                            [] sayDeath(ID_Death) then % The submarine {ID_Death} is dead
-                                UpdatedPlayerState
-                                UpdatedMineState
+                            if MineState.N.dead then
+                                NextMineState = {TreatMineMessage MineState T N+1}
+                            else
+                                ReceivedMessage
                                 in
-                                UpdatedPlayerState = {Record.adjoinList MineState.ID_Death [dead#true]}
-                                {Broadcast sayDeath(ID_Death) PlayersList}
-                                {Send GUIPORT removePlayer(ID_Death)}
-                                UpdatedMineState = {Record.adjoinList MineState [alives#MineState.alives-1 ID_Death.id#UpdatedPlayerState]}
-                                NextMineState = {TreatMineMessage UpdatedMineState T}
-                            [] sayDamageTaken(ID_Damage Damage LifeLeft) then % The submarine {ID_Damage} get {Damage} damage
-                                {Broadcast sayDamageTaken(ID_Damage Damage LifeLeft) PlayersList}
-                                {Send GUIPORT lifeUpdate(ID_Damage LifeLeft)}
-                                NextMineState = {TreatMineMessage MineState T}
-                            else % Message not supported
-                                {Logger warning(warning(message:ReceivedMessage warn:'sayMineExplode, received message not understood'))}
-                                NextMineState = {TreatMineMessage MineState T}
+                                {Send H sayMineExplode(ID Position ReceivedMessage)}
+                                {Wait ReceivedMessage}
+                                {Logger debug(sayMineExplode(position:Position message:ReceivedMessage))}
+                                case ReceivedMessage
+                                of null then % No damage for submarine {H}, continue
+                                    NextMineState = {TreatMineMessage MineState T N+1}
+                                [] sayDeath(ID_Death) then % The submarine {ID_Death} is dead
+                                    UpdatedPlayerState
+                                    UpdatedMineState
+                                    Nplayer
+                                    in
+                                    Nplayer = ID_Death.id
+                                    UpdatedPlayerState = {Record.adjoinList MineState.Nplayer [dead#true]}
+                                    {Logger debug(updatedPlayerState(UpdatedPlayerState))}
+                                    {Broadcast sayDeath(ID_Death) PlayersList}
+                                    {Send GUIPORT removePlayer(ID_Death)}
+                                    UpdatedMineState = {Record.adjoinList MineState [alives#MineState.alives-1 Nplayer#UpdatedPlayerState]}
+                                    {Logger debug(updatedMineState(UpdatedMineState))}
+                                    NextMineState = {TreatMineMessage UpdatedMineState T N+1}
+                                [] sayDamageTaken(ID_Damage Damage LifeLeft) then % The submarine {ID_Damage} get {Damage} damage
+                                    {Broadcast sayDamageTaken(ID_Damage Damage LifeLeft) PlayersList}
+                                    {Send GUIPORT lifeUpdate(ID_Damage LifeLeft)}
+                                    NextMineState = {TreatMineMessage MineState T N+1}
+                                else % Message not supported
+                                    {Logger warning(warning(message:ReceivedMessage warn:'sayMineExplode, received message not understood'))}
+                                    NextMineState = {TreatMineMessage MineState T N+1}
+                                end
                             end
                         end
                     end
                     in
-                    NextState = {TreatMineMessage State PlayersList}
+                    NextState = {TreatMineMessage State PlayersList 1}
                 else
                     {Logger warning(warning(id:ID mine:Mine warn:'Mine not understood'))}
                     NextState = State
@@ -326,6 +352,7 @@ define
                         in
                         % Treat the direction of the submarine
                         DirectionState = {TreatDirection Player N SurfaceState}
+                        {Logger debug(direction(DirectionState))}
                         % If the direction is surface, return the state
                         if DirectionState.N.isAtSurface then
                             NextObs = {Loop T N+1 DirectionState}
@@ -338,10 +365,11 @@ define
 
                             % The submarine is authorized to fire an item
                             FireState = {TreatFire Player DirectionState}
+                            {Logger debug(fire(FireState))}
 
                             % The submarine is authorized to explode a mine
                             MineState = {TreatMine Player FireState}
-                            {Logger debug(nextState(MineState))}
+                            {Logger debug(mine(MineState))}
                             NextObs = {Loop T N+1 MineState}
                         end
                     end
@@ -350,12 +378,12 @@ define
             NextState
         in
             NextState = {Loop PlayersList 1 State}
-            {Logger debug(NextState)}
+            {Logger debug(nextState(NextState))}
             if (NextState.alives > 1) then % More than 1 player still alive, continue
                 {LoopTurnByTurn NextState}
+            else % Game finished
+                {Logger debug('Game over.')}
             end
-            % Game finished
-            {Logger debug('Game over.')}
         end
 
         proc{LoopSimultaneous State}
@@ -373,6 +401,7 @@ define
         else
             {LoopSimultaneous FirstState}
         end
+        /* {Application exit(0)} */
     end
 
 in
