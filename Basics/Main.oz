@@ -3,7 +3,7 @@ import
     GUI
     Input
     PlayerManager
-    System
+    /* System */
 
 define
 	%Global Variables
@@ -111,28 +111,182 @@ define
             end
         end
 
-        % TODO
         proc{TreatCharge Player}
+        /*
+            Tell the player {Player} that he is able to charge an item
+        */
             ID_Item Kind_Item
             in
-            {Send Player chargeItem(ID_Item Kind_Item)}
+            {Send Player chargeItem(ID_Item Kind_Item)} % Ask for the ID and the kind of the item
             if ID_Item == null andthen Kind_Item == null then
                 skip
             else
-                {Broadcast sayCharge(ID_Item Kind_Item) PlayersList}
+                {Broadcast sayCharge(ID_Item Kind_Item) PlayersList} % Broadcats that the player {Player} has charge an item
             end
         end
 
-        % TODO
-        fun{TreatFire Player N State}
-            {Logger err('TreatFire not implemented yet.')}
-            State
+        proc{TreatFire Player State ?NextState}
+        /*
+            Ask the player {Player} for firing an item
+        */
+            ID_Fire Kind_Fire
+            in
+            {Send Player fireItem(ID_Fire Kind_Fire)}
+            {Wait ID_Fire} {Wait Kind_Fire}
+            {Logger debug(fireItem(kind:Kind_Fire id:ID_Fire))}
+            if ID_Fire == null then % No fire (impossible in theory)
+                NextState = State
+            else
+                case Kind_Fire
+                of null then % No fire
+                    NextState = State
+                [] missile(Position) then % Explode a missile at postion {Position}
+                    proc{TreatMissileMessage MissileState PlayersToBroadcast ?NextMissileState}
+                        case PlayersToBroadcast
+                        of nil then % No more player to treat
+                            NextMissileState = MissileState
+                        [] H|T then % Next player
+                            ReceivedMessage
+                            in
+                            {Send H sayMissileExplode(ID_Fire Position ReceivedMessage)}
+                            {Wait ReceivedMessage}
+                            {Logger debug(sayMissileExplode(position:Position message:ReceivedMessage))}
+                            case ReceivedMessage
+                            of null then % No damage for submarine {H}, continue
+                                NextMissileState = {TreatMissileMessage MissileState T}
+                            [] sayDeath(ID_Death) then % The submarine {ID_Death} is dead
+                                UpdatedPlayerState
+                                UpdatedMissileState
+                                in
+                                UpdatedPlayerState = {Record.adjoinList MissileState.ID_Death [dead#true]}
+                                {Broadcast sayDeath(ID_Death) PlayersList}
+                                {Send GUIPORT removePlayer(ID_Death)}
+                                UpdatedMissileState = {Record.adjoinList MissileState [alives#MissileState.alives-1 ID_Death.id#UpdatedPlayerState]}
+                                NextMissileState = {TreatMissileMessage UpdatedMissileState T}
+                            [] sayDamageTaken(ID_Damage Damage LifeLeft) then % The submarine {ID_Damage} get {Damage} damage
+                                {Broadcast sayDamageTaken(ID_Damage Damage LifeLeft) PlayersList}
+                                {Send GUIPORT lifeUpdate(ID_Damage LifeLeft)}
+                                NextMissileState = {TreatMissileMessage MissileState T}
+                            else % Message not supported
+                                {Logger warning(warning(message:ReceivedMessage warn:'sayMissileExplode, received message not understood'))}
+                                NextMissileState = {TreatMissileMessage MissileState T}
+                            end
+                        end
+                    end
+                    in
+                    NextState = {TreatMissileMessage State PlayersList}
+                [] mine(Position) then % Treat a placed mine
+                    {Broadcast sayMinePlaced(ID_Fire) PlayersList}
+                    {Send GUIPORT putMine(ID_Fire Position)}
+                    NextState = State
+                [] drone(Type Position) then
+                    proc{TreatDroneMessage PlayersToBroadcast}
+                        case PlayersToBroadcast
+                        of nil then % No more player to treat
+                            skip
+                        [] H|T then
+                            ID_Passing_Drone Is_Under_Drone
+                            in
+                            {Send H sayPassingDrone(drone(Type Position) ID_Passing_Drone Is_Under_Drone)} % Ask the player {H} if is under the drone
+                            {Wait ID_Passing_Drone} {Wait Is_Under_Drone}
+                            {Logger debug(isUnderDrone(player:ID_Passing_Drone isUnder:Is_Under_Drone drone:drone(Type Position)))}
+                            {Send Player sayAnswerDrone(drone(Type Position) ID_Passing_Drone Is_Under_Drone)} % Tell the player {Player} if the player {H} is under the drone
+                            {TreatDroneMessage T} % Next player
+                        end
+                    end
+                    in
+                    case Type
+                    of row then
+                        if Position > Input.nRow then % Too big for the map
+                            {Logger warning(warning(id:ID_Fire rowAsked:Position nRowMap:Input.nRow warn:'Row asked for a drone too big for the map'))}
+                        else
+                            {TreatDroneMessage PlayersList}
+                        end
+                    [] column then
+                        if Position > Input.nColumn then % Too big for the map
+                            {Logger warning(warning(id:ID_Fire columnAsked:Position nColumnMap:Input.nRow warn:'Column asked for a drone too big for the map'))}
+                        else
+                            {TreatDroneMessage PlayersList}
+                        end
+                    else
+                        {Logger warning(warning(id:ID_Fire droneType:Type warn:'drone type not understood'))}
+                    end
+                    NextState = State
+                [] sonar then
+                    proc{TreatSonarMessage PlayersToBroadcast}
+                        case PlayersToBroadcast
+                        of nil then % No more player to treat
+                            skip
+                        [] H|T then
+                            ID_Passing_Sonar Position_Sonar
+                            in
+                            {Send H sayPassingSonar(ID_Passing_Sonar Position_Sonar)} % Ask the player {H} for a sonar
+                            {Wait ID_Passing_Sonar} {Wait Position_Sonar}
+                            {Logger debug(id:ID_Passing_Sonar answer:Position_Sonar)}
+                            {Send Player sayAnswerSonar(ID_Passing_Sonar Position_Sonar)} % Tell the player {Player} if the player {H} is under the drone
+                            {TreatSonarMessage T} % Next player
+                        end
+                    end
+                    in
+                    {TreatSonarMessage PlayersList}
+                else
+                    NextState = State
+                end
+            end
         end
 
-        % TODO
-        fun{TreatMine Player N State}
-            {Logger err('TreatMine not implemented yet.')}
-            State
+        proc{TreatMine Player State ?NextState}
+            ID Mine
+            in
+            {Send Player fireMine(ID Mine)}
+            {Wait ID} {Wait Mine}
+            {Logger debug(fireMine(ID Mine))}
+            if ID == null then % Impossible in theory
+                NextState = State
+            else
+                case Mine
+                of null then % No mine to explode
+                    NextState = State
+                [] Position then
+                    proc{TreatMineMessage MineState PlayersToBroadcast ?NextMineState}
+                        case PlayersToBroadcast
+                        of nil then % No more player to treat
+                            NextMineState = MineState
+                        [] H|T then % Next player
+                            ReceivedMessage
+                            in
+                            {Send H sayMineExplode(ID Position ReceivedMessage)}
+                            {Wait ReceivedMessage}
+                            {Logger debug(sayMineExplode(position:Position message:ReceivedMessage))}
+                            case ReceivedMessage
+                            of null then % No damage for submarine {H}, continue
+                                NextMineState = {TreatMineMessage MineState T}
+                            [] sayDeath(ID_Death) then % The submarine {ID_Death} is dead
+                                UpdatedPlayerState
+                                UpdatedMineState
+                                in
+                                UpdatedPlayerState = {Record.adjoinList MineState.ID_Death [dead#true]}
+                                {Broadcast sayDeath(ID_Death) PlayersList}
+                                {Send GUIPORT removePlayer(ID_Death)}
+                                UpdatedMineState = {Record.adjoinList MineState [alives#MineState.alives-1 ID_Death.id#UpdatedPlayerState]}
+                                NextMineState = {TreatMineMessage UpdatedMineState T}
+                            [] sayDamageTaken(ID_Damage Damage LifeLeft) then % The submarine {ID_Damage} get {Damage} damage
+                                {Broadcast sayDamageTaken(ID_Damage Damage LifeLeft) PlayersList}
+                                {Send GUIPORT lifeUpdate(ID_Damage LifeLeft)}
+                                NextMineState = {TreatMineMessage MineState T}
+                            else % Message not supported
+                                {Logger warning(warning(message:ReceivedMessage warn:'sayMineExplode, received message not understood'))}
+                                NextMineState = {TreatMineMessage MineState T}
+                            end
+                        end
+                    end
+                    in
+                    NextState = {TreatMineMessage State PlayersList}
+                else
+                    {Logger warning(warning(id:ID mine:Mine warn:'Mine not understood'))}
+                    NextState = State
+                end
+            end
         end
 
        	fun{Reset}
@@ -161,7 +315,7 @@ define
                 case List
                 of nil then % All players were treat
                     NextObs = Obs
-                [] Player|T then
+                [] Player|T then % Treat the next player
                     SurfaceState
                     in
                     SurfaceState = {TreatSurface Player N Obs}
@@ -183,10 +337,11 @@ define
                             {TreatCharge Player}
 
                             % The submarine is authorized to fire an item
-                            FireState = {TreatFire Player N DirectionState}
+                            FireState = {TreatFire Player DirectionState}
 
                             % The submarine is authorized to explode a mine
-                            MineState = {TreatMine Player N FireState}
+                            MineState = {TreatMine Player FireState}
+                            {Logger debug(nextState(MineState))}
                             NextObs = {Loop T N+1 MineState}
                         end
                     end
@@ -196,17 +351,20 @@ define
         in
             NextState = {Loop PlayersList 1 State}
             {Logger debug(NextState)}
-            if (NextState.alives > 1) then
+            if (NextState.alives < 0) then % More than 1 player still alive, continue
                 {LoopTurnByTurn NextState}
             end
+            % Game finished
             {Logger debug('Game over.')}
         end
+
         proc{LoopSimultaneous State}
         /*
          Handle the simultaneous game
         */
          {Logger err('LoopSimultaneous not implemented yet')}
         end
+
         FirstState
    in
         FirstState = {Reset}
