@@ -110,11 +110,14 @@ in
         end %end of case
 
         /* Now binding ID and Position to the position chosen. Direction was already bound */
-        ID = ReturnState.id
-        Position=ReturnState.pos
-        ReturnState
+        if{IsIsland ReturnState.pos.x ReturnState.pos.y}then
+                {Move State ID Position Direction}
+        else
+                ID = ReturnState.id
+                Position=ReturnState.pos
+                ReturnState
+        end
     end
-
     fun{Dive State}
     /* Updating current state to note that I'm underwater */
         {AdjoinList State [underwater#true]}
@@ -320,6 +323,8 @@ in
         *   Playerstate contains all information about the current player
         */
         State = playerstate(id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
+
+
         thread {TreatStream Stream State} end
         Port
 
