@@ -242,7 +242,15 @@ in
     fun{SayPassingDrone State Drone ?ID ?Answer}
         /* Receiving a drone message. I must answer whether I'm on it or not and bind my ID
         <drone> := drone(row <x>)|drone(column <y>) */
-
+        case Drone
+        of drone(row X) then
+            if X == State.pos.x then Answer = true else Answer = false end
+        [] drone(column Y)then
+            if Y == State.pos.y then Answer = true else Answer = false end
+        else
+            {Logger err('[Player.oz] SayPassingDrone invalid drone')}
+        end
+        ID = State.id
         State
     end
 
@@ -251,6 +259,16 @@ in
     end
 
     fun{SayPassingSonar State ?Id ?Answer}
+        Rand A in
+        Rand = {OS.rand} mod 2
+        if Rand == 0 then
+            A = {OS.rand} mod Input.nRow+1
+            Answer = pt(x:State.pos.x y:A)
+        else
+            A = {OS.rand} mod Input.nColumn+1
+            Answer = pt(y:State.pos.y x:A)
+        end
+        Id = State.id
         State
     end
 
