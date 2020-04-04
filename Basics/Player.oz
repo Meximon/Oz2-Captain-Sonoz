@@ -58,7 +58,6 @@ in
         []saySurface(ID)|T then {TreatStream T {SaySurface State ID}}
         []sayCharge(ID KindItem)|T then {TreatStream T {SayCharge State ID KindItem}}
         []sayMinePlaced(ID)|T then {TreatStream T {SayMinePlaced State ID}}
-
         []sayMissileExplode(ID Position Message)|T then {TreatStream T {SayMissileExplode State ID Position Message}}
         []sayMineExplode(ID Position Message)|T then {TreatStream T {SayMineExplode State ID Position Message}}
         []sayPassingDrone(Drone ID Answer)|T then {TreatStream T {SayPassingDrone State Drone ID Answer}}
@@ -72,28 +71,16 @@ in
     end %Proc Treatstream end
 
     %%%
-    %This section contains all the characteristic functions of player. They MUST return
-    %a State that has been updated.
+    %%%
+    %%%
+
     fun{InitPosition State ?ID ?Position} Return in
+    /* Initialises the player's initial position */
         Position = {RandomNoIsland}
         Return = {AdjoinList State [pos#Position]}
         ID = Return.id
         Return
     end %Fun InitPostion end
-
-    fun{RandomNoIsland}
-        X Y
-        in
-        X = {OS.rand} mod Input.nRow +1
-        Y = {OS.rand} mod Input.nColumn +1
-        if{IsIsland X Y} then
-        {RandomNoIsland}
-        else
-        pt(x:X y:Y)
-        end
-    end
-
-
 
     /* Note that InitPosition and move are the movements made by the player.
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
@@ -129,6 +116,7 @@ in
     end
 
     fun{Dive State}
+    /* Updating current state to note that I'm underwater */
         {AdjoinList State [underwater#true]}
     end
 
@@ -153,6 +141,8 @@ in
     end
 
     fun{FireItem State ?ID ?KindFire}
+    /* Called to fire an item. We must first check whether we can actually fire an item, and then
+    return which one we fired. null otherwise */
         ReturnState in
         if State.missilecharge == Input.missile then
             KindFire = missile({RandomNoIsland})
@@ -176,7 +166,10 @@ in
     end
 
     fun{FireMine State ?ID ?Mine}
-        {Logger debug('Not implemented')}
+        /* Decide whether you want to fire a mine. This player never places mines thus no mine can be
+        fired. */
+        ID = State.id
+        Mine = null
         State
     end
 
@@ -207,7 +200,7 @@ in
     end
 
     fun{SayMissileExplode State ID Position ?Message} ReturnState ManDist Dmg Hp in
-    /* Player with ID made a missile explode in a given position. Check whether it hits you and reply accordingly by binding message */
+    /* Player with ID made a missile explode in a given position. Check whether the position corresponds and reply accordingly by binding Message */
         ManDist = {Abs State.pos.x-Position.x} + {Abs State.pos.y-Position.y}
 
         case ManDist of
@@ -229,7 +222,6 @@ in
         else
             Message = null
         end
-    %{System.show Message}
     ReturnState
     end
 
@@ -255,6 +247,7 @@ in
     end
 
     fun{SayAnswerDrone State Drone ID Answer}
+        /* Involves logging other player's positions. Ignoring */
         State
     end
 
@@ -273,19 +266,23 @@ in
     end
 
     fun{SayAnswerSonar State ID Answer}
+            /* Involves logging other player's positions. Ignoring */
         State
     end
 
     fun{SayDeath State ID}
+            /* Involves logging other player's positions. Ignoring */
         State
     end
 
     fun{SayDamageTaken State ID Damage LifeLeft}
+            /* Involves logging other player's positions. Ignoring */
         State
     end
 
 
-
+    %%%
+    %%%
     %%%
 
     fun{IsIsland X Y}
@@ -293,6 +290,19 @@ in
     * Returns whether the x and y coordinates correspond to an island.
     */
     if{List.nth {List.nth Input.map X} Y} == 1 then true else false end
+    end
+
+    fun{RandomNoIsland}
+    /* Returns a random position that is not an island */
+        X Y
+        in
+        X = {OS.rand} mod Input.nRow +1
+        Y = {OS.rand} mod Input.nColumn +1
+        if{IsIsland X Y} then
+        {RandomNoIsland}
+        else
+            pt(x:X y:Y)
+        end
     end
 
 
