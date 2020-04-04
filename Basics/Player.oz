@@ -29,6 +29,14 @@ define
     SaySurface
     SayCharge
     SayMinePlaced
+    SayMissileExplode
+    SayMineExplode
+    SayPassingDrone
+    SayAnswerDrone
+    SayPassingSonar
+    SayAnswerSonar
+    SayDeath
+    SayDamageTaken
 
 
 in
@@ -50,6 +58,15 @@ in
         []saySurface(ID)|T then {TreatStream T {SaySurface State ID}}
         []sayCharge(ID KindItem)|T then {TreatStream T {SayCharge State ID KindItem}}
         []sayMinePlaced(ID)|T then {TreatStream T {SayMinePlaced State ID}}
+
+        []sayMissileExplode(ID Position Message)|T then {TreatStream T {SayMissileExplode State ID Position Message}}
+        []sayMineExplode(ID Position Message)|T then {TreatStream T {SayMineExplode State ID Position Message}}
+        []sayPassingDrone(Drone ID Answer)|T then {TreatStream T {SayPassingDrone State Drone ID Answer}}
+        []sayAnswerDrone(Drone ID Answer)|T then {TreatStream T {SayAnswerDrone State Drone ID Answer}}
+        []sayPassingSonar(ID Answer)|T then{TreatStream T {SayPassingSonar State ID Answer}}
+        []sayAnswerSonar(ID Answer)|T then {TreatStream T {SayAnswerSonar State ID Answer}}
+        []sayDeath(ID)|T then {TreatStream T {SayDeath State ID}}
+        []sayDamageTaken(ID Damage Lifeleft)|T then {TreatStream T {SayDamageTaken State ID Damage Lifeleft}}
         else {Logger err('[Player.oz] Treatstream illegal record')}
         end %Case end
     end %Proc Treatstream end
@@ -57,7 +74,7 @@ in
     %%%
     %This section contains all the characteristic functions of player. They MUST return
     %a State that has been updated.
-    fun{InitPosition State ID Position} Return in
+    fun{InitPosition State ?ID ?Position} Return in
         Position = {RandomNoIsland}
         Return = {AdjoinList State [pos#Position]}
         ID = Return.id
@@ -81,7 +98,7 @@ in
     /* Note that InitPosition and move are the movements made by the player.
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
-    fun{Move State ID Position Direction}
+    fun{Move State ?ID ?Position ?Direction}
         RandomInt ReturnState Newpos in
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
@@ -115,7 +132,7 @@ in
         {AdjoinList State [underwater#true]}
     end
 
-    fun{ChargeItem State ID KindItem}
+    fun{ChargeItem State ?ID ?KindItem}
         /* This function gets to charge ONE item and has to choose which one.
         For testing purpose, we'll only charge the sonar in this player. */
         ReturnState SonarCharge in
@@ -131,11 +148,11 @@ in
             KindItem = null
         end
         ID = ReturnState.id
-        {System.show ReturnState}
+        %{System.show ReturnState}
         ReturnState
     end
 
-    fun{FireItem State ID KindFire}
+    fun{FireItem State ?ID ?KindFire}
         ReturnState in
         if State.missilecharge == Input.missile then
             KindFire = missile({RandomNoIsland})
@@ -150,38 +167,103 @@ in
         elseif State.dronecharge = Input.drone then
             KindFire = drone
             ReturnState = {AdjoinList State [drone#0]}
+        else
+            KindFire = null
         end
         ID = ReturnState.id
         ReturnState = State
         State
     end
 
-    fun{FireMine State ID Mine}
+    fun{FireMine State ?ID ?Mine}
         {Logger debug('Not implemented')}
         State
     end
 
-    fun{IsDead State Answer}
+    fun{IsDead State ?Answer}
             if(State.hp<1) then Answer = true else Answer = false end
             State
     end
 
-la */
     fun{SayMove State ID Direction}
+    /* Involves logging position, ignoring.
+    State is thus not being modified */
         State
     end
 
     fun{SaySurface State ID}
+    /* Involves logging position, ignoring. */
         State
     end
 
     fun{SayCharge State ID KindItem}
+        /* Involves logging position, ignoring. */
         State
     end
 
     fun{SayMinePlaced State ID}
+        /* Involves logging position, ignoring. */
         State
     end
+
+    fun{SayMissileExplode State ID Position ?Message} ReturnState ManDist Dmg Hp in
+    /* Player with ID made a missile explode in a given position. Check whether it hits you and reply accordingly by binding message */
+        ManDist = {Abs State.pos.x-Position.x} + {Abs State.pos.y-Position.y}
+
+        case ManDist of
+        0 then
+            Dmg = 2
+        []1 then
+            Dmg = 1
+        else
+            Message = null % No damage received
+            Dmg = 0
+        end
+        Hp = State.hp-Dmg
+        ReturnState = {AdjoinList State [hp#Hp]}
+
+        if ReturnState.hp=<0 then
+            Message=sayDeath(ReturnState.id)
+        elseif Dmg > 0 then
+            Message=sayDamageTaken(ReturnState.id Dmg ReturnState.hp)
+        else
+            Message = null
+        end
+    %{System.show Message}
+    ReturnState
+    end
+
+    fun{SayMineExplode State ID Position ?Message}
+        /* Apparently is's just the same as missileexplode. */
+        {SayMissileExplode State ID Position Message}
+
+    end
+
+    fun{SayPassingDrone State Drone ?ID ?Answer}
+        State
+    end
+
+    fun{SayAnswerDrone State Drone ID Answer}
+        State
+    end
+
+    fun{SayPassingSonar State ?Id ?Answer}
+        State
+    end
+
+    fun{SayAnswerSonar State ID Answer}
+        State
+    end
+
+    fun{SayDeath State ID}
+        State
+    end
+
+    fun{SayDamageTaken State ID Damage LifeLeft}
+        State
+    end
+
+
 
     %%%
 
