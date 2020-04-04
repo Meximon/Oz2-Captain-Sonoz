@@ -351,7 +351,7 @@ define
         in
             NextState = {Loop PlayersList 1 State}
             {Logger debug(NextState)}
-            if (NextState.alives > 1) then % More than 1 player still alive, continue
+            if (NextState.alives < 0) then % More than 1 player still alive, continue
                 {LoopTurnByTurn NextState}
             end
             % Game finished
