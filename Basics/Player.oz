@@ -164,15 +164,15 @@ in
         elseif State.sonarcharge == Input.sonar then
             KindFire = sonar
             ReturnState = {AdjoinList State [sonarcharge#0]}
-        elseif State.dronecharge = Input.drone then
+        elseif State.dronecharge == Input.drone then
             KindFire = drone
             ReturnState = {AdjoinList State [drone#0]}
         else
             KindFire = null
+            ReturnState = State
         end
         ID = ReturnState.id
-        ReturnState = State
-        State
+        ReturnState
     end
 
     fun{FireMine State ?ID ?Mine}
@@ -240,6 +240,9 @@ in
     end
 
     fun{SayPassingDrone State Drone ?ID ?Answer}
+        /* Receiving a drone message. I must answer whether I'm on it or not and bind my ID
+        <drone> := drone(row <x>)|drone(column <y>) */
+
         State
     end
 
