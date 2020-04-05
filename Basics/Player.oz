@@ -89,6 +89,7 @@ in
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
     fun{Move State ?ID ?Position ?Direction}
+        if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
         RandomInt ReturnState Newpos DirTemp in
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
@@ -121,6 +122,7 @@ in
                 Position=ReturnState.pos
                 ReturnState
         end
+        end%end of underwater
     end
     fun{Dive State}
     /* Updating current state to note that I'm underwater */
@@ -296,15 +298,23 @@ in
     /*
     * Returns whether the x and y coordinates correspond to an island.
     */
-    if{List.nth {List.nth Input.map X} Y} == 1 then true else false end
+    %{System.show isisland(x:X y:Y)}
+    /* C'est crado qu'on sache pas faire des if A or B or C then .. else .. */
+    if X>Input.nColumn then true else
+        if Y>Input.nRow then true else
+            if X<1 then true else
+                if Y<1 then true else
+
+            if{List.nth {List.nth Input.map X} Y} == 1 then true else false end
+            end end end end
     end
 
     fun{RandomNoIsland}
     /* Returns a random position that is not an island */
         X Y
         in
-        X = {OS.rand} mod Input.nRow +1
-        Y = {OS.rand} mod Input.nColumn +1
+        X = {OS.rand} mod Input.nRow+1
+        Y = {OS.rand} mod Input.nColumn+1
         if{IsIsland X Y} then
         {RandomNoIsland}
         else
