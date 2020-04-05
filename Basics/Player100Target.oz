@@ -148,9 +148,9 @@ in
             else
                 ReturnState = State
             end
-            if ReturnStae.missilecharge== Input.missile then KindItem = missile else KindItem = null end
+            if ReturnState.missilecharge== Input.missile then KindItem = missile else KindItem = null end
         end
-        {System.show ReturnState}
+        %%{System.show ReturnState}
         ID = ReturnState.id
         ReturnState
     end
@@ -403,7 +403,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland})
+        State = playerstate(id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
 
 
         thread {TreatStream Stream State} end
