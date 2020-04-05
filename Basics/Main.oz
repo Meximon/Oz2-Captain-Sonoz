@@ -64,6 +64,7 @@ define
         proc{Broadcast Message List}
             case List
             of nil then
+                {Logger debug(broadcast(Message))}
                 skip
             [] Player|T then
                 {Send Player Message}
@@ -424,8 +425,8 @@ define
          Handle the simultaneous game
         */
 
-            proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end
-            /* proc{SimulateThinking} {Delay 5} end */
+            /* proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end */
+            proc{SimulateThinking} {Delay 5} end
 
             proc{Step Player N Obs}
                 IsGameOver
