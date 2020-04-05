@@ -1,3 +1,6 @@
+/* This player is going to try to kill the other players one by one. Once a player has
+successfully been killed, it resets all it's "known" variables and starts targeting the
+following player. */
 functor
 import
     Input
@@ -86,25 +89,25 @@ in
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
     fun{Move State ?ID ?Position ?Direction}
-        RandomInt ReturnState Newpos in
+        RandomInt ReturnState Newpos DirTemp in
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
         /* 0-1-2-3 NORTH EAST SOUTH WEST */
         case RandomInt of
         0 then
-            Direction = north
+            DirTemp = north
             Newpos = pt(x: State.pos.x y:State.pos.y-1)
             ReturnState = {AdjoinList State [pos#Newpos]}
         []1 then
-            Direction = east
+            DirTemp = east
             Newpos = pt(x: State.pos.x+1 y: State.pos.y)
             ReturnState = {AdjoinList State [pos#Newpos]}
         [] 2 then
-            Direction= south
+            DirTemp= south
             Newpos = pt(x: State.pos.x y: State.pos.y+1)
             ReturnState = {AdjoinList State [pos#Newpos]}
         [] 3 then
-            Direction = west
+            DirTemp = west
             Newpos = pt(x: State.pos.x-1 y: State.pos.y)
             ReturnState = {AdjoinList State [pos#Newpos]}
         end %end of case
@@ -113,6 +116,7 @@ in
         if{IsIsland ReturnState.pos.x ReturnState.pos.y}then
                 {Move State ID Position Direction}
         else
+                Direction = DirTemp
                 ID = ReturnState.id
                 Position=ReturnState.pos
                 ReturnState
