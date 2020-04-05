@@ -43,7 +43,7 @@ in
 		Desc=grid(handle:Grid height:500 width:500)
 		DescScore=grid(handle:GridScore height:100 width:500)
 		Window={QTk.build td(Toolbar Desc DescScore)}
-  
+
 		{Window show}
 
 		% configure rows and set headers
@@ -132,7 +132,7 @@ in
 			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:NewPath|Path)
 		end
 	end
-  
+
 	fun{DrawMine Position}
 		fun{$ Grid State}
 			ID HandleScore Handle Mine Path LabelMine HandleMine X Y
@@ -171,7 +171,7 @@ in
 			end
 		end
 	end
-	
+
 	fun{DrawPath Grid Color X Y}
 		Handle LabelPath
 	in
@@ -179,12 +179,12 @@ in
 		{Grid.grid configure(LabelPath row:X+1 column:Y+1)}
 		Handle
 	end
-	
+
 	proc{RemoveItem Grid Handle}
 		{Grid.grid forget(Handle)}
 	end
 
-		
+
 	fun{RemovePath Grid State}
 		ID HandleScore Handle Mine Path
 	in
@@ -254,8 +254,8 @@ in
 	proc{TreatStream Stream Grid State}
 		case Stream
 		of nil then skip
-		[] buildWindow|T then NewGrid in 
-			{TreatStream T NewGrid State}
+		[] buildWindow|T then NewGrid in
+			{TreatStream T {BuildWindow} State}
 		[] initPlayer(ID Position)|T then NewState in
 			NewState = {DrawSubmarine Grid ID Position}
 			{TreatStream T Grid NewState|State}
@@ -264,7 +264,7 @@ in
 		[] lifeUpdate(ID Life)|T then
 			{TreatStream T Grid {StateModification Grid ID State {UpdateLife Life}}}
 			{TreatStream T Grid State}
-		[] putMine(ID Position)|T then 
+		[] putMine(ID Position)|T then
 			{TreatStream T Grid {StateModification Grid ID State {DrawMine Position}}}
 		[] removeMine(ID Position)|T then
 			{TreatStream T Grid {StateModification Grid ID State {RemoveMine Position}}}

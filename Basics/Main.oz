@@ -3,16 +3,19 @@ import
     GUI
     Input
     PlayerManager
+    OS
     /* Application */
     /* System */
 
 define
 	%Global Variables
 
-	GUIPORT
-	PlayersList
+    SIMPORT     % Handle the information between players during the simultaneous game
+    SimStream   % The stream containing informations about the number of players remaining (end game)
+	GUIPORT     % Handle the information send to the GUI
+	PlayersList % Contains all players ports (list)
 
-    Logger = Input.logger
+    Logger = Input.logger % Used to display log informations (debug, warning, error)
 
 	proc{CreatePlayers ?PlayerList}
 	/*
@@ -72,7 +75,7 @@ define
         /*
             Treat the surface attribute of the submarine
         */
-            if State.N.isAtSurface then
+            if State.N.isAtSurface andthen State.N.dead == false then
                 NewPlayerState
                 in
                 if State.N.timeRemaining > 0 then % Time remaining on the surface, just decrease is time remaining
@@ -99,12 +102,17 @@ define
             if Move_ID == null then
                 NextState = State
             elseif Move_Direction == surface then
-                NextPlayerState
-                in
                 {Broadcast saySurface(Move_ID) PlayersList}
                 {Send GUIPORT surface(Move_ID)}
-                NextPlayerState = {Record.adjoinList State.N [isAtSurface#true timeRemaining#Input.turnSurface]}
-                NextState = {Record.adjoinList State [N#NextPlayerState]}
+                if Input.isTurnByTurn then % If it is turn by turn, change the state of the player: isAtSurface=true and timeRemaining=Input.turnSurface
+                    NextPlayerState
+                    in
+                    NextPlayerState = {Record.adjoinList State.N [isAtSurface#true timeRemaining#Input.turnSurface]}
+                    NextState = {Record.adjoinList State [N#NextPlayerState]}
+                else % If it is simultaneous, sleep {Input.turnSurface} seconds
+                    {Delay (1000*Input.turnSurface)}
+                    NextState = State
+                end
             else
                 {Broadcast sayMove(Move_ID Move_Direction) PlayersList}
                 {Send GUIPORT movePlayer(Move_ID Move_Position)}
@@ -147,7 +155,11 @@ define
                         of nil then % No more player to treat
                             NextMissileState = MissileState
                         [] H|T then % Next player
-                            if MissileState.N.dead then % Check if is dead
+                            IsPlayerDead
+                            in
+                            {Send H isDead(IsPlayerDead)} % Ask the player {H} if he is dead
+                            {Wait IsPlayerDead}
+                            if IsPlayerDead then % Check if is dead
                                 NextMissileState = {TreatMissileMessage MissileState T N+1}
                             else
                                 ReceivedMessage
@@ -168,6 +180,8 @@ define
                                     {Logger debug(updatedPlayerState(UpdatedPlayerState))}
                                     {Broadcast sayDeath(ID_Death) PlayersList}
                                     {Send GUIPORT removePlayer(ID_Death)}
+                                    {Logger debug(death_remove(ID_Death))}
+                                    {Send SIMPORT sayDeath(ID_Death)}
                                     UpdatedMissileState = {Record.adjoinList MissileState [alives#MissileState.alives-1 Nplayer#UpdatedPlayerState]}
                                     {Logger debug(updatedMissileState(UpdatedMissileState))}
                                     NextMissileState = {TreatMissileMessage UpdatedMissileState T N+1}
@@ -183,6 +197,7 @@ define
                         end
                     end
                     in
+                    {Send GUIPORT explosion(ID_Fire Position)}
                     NextState = {TreatMissileMessage State PlayersList 1}
                 [] mine(Position) then % Treat a placed mine
                     {Broadcast sayMinePlaced(ID_Fire) PlayersList}
@@ -194,7 +209,11 @@ define
                         of nil then % No more player to treat
                             skip
                         [] H|T then
-                            if State.N.dead then
+                            IsPlayerDead
+                            in
+                            {Send H isDead(IsPlayerDead)}
+                            {Wait IsPlayerDead}
+                            if IsPlayerDead then
                                 {TreatDroneMessage T N+1}
                             else
                                 ID_Passing_Drone Is_Under_Drone
@@ -214,12 +233,14 @@ define
                             {Logger warning(warning(id:ID_Fire rowAsked:Position nRowMap:Input.nRow warn:'Row asked for a drone too big for the map'))}
                         else
                             {TreatDroneMessage PlayersList 1}
+                            {Send GUIPORT Kind_Fire}
                         end
                     [] column then
                         if Position > Input.nColumn then % Too big for the map
                             {Logger warning(warning(id:ID_Fire columnAsked:Position nColumnMap:Input.nRow warn:'Column asked for a drone too big for the map'))}
                         else
                             {TreatDroneMessage PlayersList 1}
+                            {Send GUIPORT Kind_Fire}
                         end
                     else
                         {Logger warning(warning(id:ID_Fire droneType:Type warn:'drone type not understood'))}
@@ -231,7 +252,11 @@ define
                         of nil then % No more player to treat
                             skip
                         [] H|T then
-                            if State.N.dead then
+                            IsPlayerDead
+                            in
+                            {Send H isDead(IsPlayerDead)}
+                            {Wait IsPlayerDead}
+                            if IsPlayerDead then
                                 {TreatSonarMessage T N+1} % Next player
                             else
                                 ID_Passing_Sonar Position_Sonar
@@ -292,6 +317,8 @@ define
                                     {Logger debug(updatedPlayerState(UpdatedPlayerState))}
                                     {Broadcast sayDeath(ID_Death) PlayersList}
                                     {Send GUIPORT removePlayer(ID_Death)}
+                                    {Logger debug(death_remove(ID_Death))}
+                                    {Send SIMPORT sayDeath(ID_Death)}
                                     UpdatedMineState = {Record.adjoinList MineState [alives#MineState.alives-1 Nplayer#UpdatedPlayerState]}
                                     {Logger debug(updatedMineState(UpdatedMineState))}
                                     NextMineState = {TreatMineMessage UpdatedMineState T N+1}
@@ -307,6 +334,8 @@ define
                         end
                     end
                     in
+                    {Send GUIPORT removeMine(ID Position)}
+                    {Send GUIPORT explosion(ID Position)}
                     NextState = {TreatMineMessage State PlayersList 1}
                 else
                     {Logger warning(warning(id:ID mine:Mine warn:'Mine not understood'))}
@@ -337,47 +366,51 @@ define
         /*
          Handle the turn by turn game
         */
-            proc{Loop List N Obs ?NextObs}
+            proc{Step List N Obs ?NextObs}
                 case List
                 of nil then % All players were treat
                     NextObs = Obs
                 [] Player|T then % Treat the next player
-                    SurfaceState
-                    in
-                    SurfaceState = {TreatSurface Player N Obs}
-                    if SurfaceState.N.isAtSurface then % The player number N is at surface
-                        NextObs = {Loop T N+1 SurfaceState}
-                    else % The player number N is not at surface so continue
-                        DirectionState
+                    if Obs.N.dead then
+                        NextObs = {Step T N+1 Obs}
+                    else
+                        SurfaceState
                         in
-                        % Treat the direction of the submarine
-                        DirectionState = {TreatDirection Player N SurfaceState}
-                        {Logger debug(direction(DirectionState))}
-                        % If the direction is surface, return the state
-                        if DirectionState.N.isAtSurface then
-                            NextObs = {Loop T N+1 DirectionState}
-                        else
-                            FireState
-                            MineState
+                        SurfaceState = {TreatSurface Player N Obs}
+                        if SurfaceState.N.isAtSurface then % The player number N is at surface
+                            NextObs = {Step T N+1 SurfaceState}
+                        else % The player number N is not at surface so continue
+                            DirectionState
                             in
-                            % Charge item
-                            {TreatCharge Player}
+                            % Treat the direction of the submarine
+                            DirectionState = {TreatDirection Player N SurfaceState}
+                            {Logger debug(direction(DirectionState))}
+                            % If the direction is surface, return the state
+                            if DirectionState.N.isAtSurface then
+                                NextObs = {Step T N+1 DirectionState}
+                            else
+                                FireState
+                                MineState
+                                in
+                                % Charge item
+                                {TreatCharge Player}
 
-                            % The submarine is authorized to fire an item
-                            FireState = {TreatFire Player DirectionState}
-                            {Logger debug(fire(FireState))}
+                                % The submarine is authorized to fire an item
+                                FireState = {TreatFire Player DirectionState}
+                                {Logger debug(fire(player:N state:FireState))}
 
-                            % The submarine is authorized to explode a mine
-                            MineState = {TreatMine Player FireState}
-                            {Logger debug(mine(MineState))}
-                            NextObs = {Loop T N+1 MineState}
+                                % The submarine is authorized to explode a mine
+                                MineState = {TreatMine Player FireState}
+                                {Logger debug(mine(MineState))}
+                                NextObs = {Step T N+1 MineState}
+                            end
                         end
                     end
                 end
             end
             NextState
         in
-            NextState = {Loop PlayersList 1 State}
+            NextState = {Step PlayersList 1 State}
             {Logger debug(nextState(NextState))}
             if (NextState.alives > 1) then % More than 1 player still alive, continue
                 {LoopTurnByTurn NextState}
@@ -390,16 +423,85 @@ define
         /*
          Handle the simultaneous game
         */
-         {Logger err('LoopSimultaneous not implemented yet')}
+
+            proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end
+            /* proc{SimulateThinking} {Delay 5} end */
+
+            proc{Step Player N Obs}
+                IsGameOver
+                SurfaceState
+                DirectionState
+                FireState
+                MineState
+                in
+
+                SurfaceState = {TreatSurface Player N Obs}
+
+                {SimulateThinking}
+
+                % Treat the direction of the submarine
+                DirectionState = {TreatDirection Player N SurfaceState}
+                {Logger debug(direction(DirectionState))}
+
+                {SimulateThinking}
+
+                % If the direction is surface, return the state
+                % Charge item
+                {TreatCharge Player}
+                {SimulateThinking}
+
+                % The submarine is authorized to fire an item
+                FireState = {TreatFire Player DirectionState}
+                {Logger debug(fire(FireState))}
+                {SimulateThinking}
+
+                % The submarine is authorized to explode a mine
+                MineState = {TreatMine Player FireState}
+                {SimulateThinking}
+                {Logger debug(mine(MineState))}
+
+                {Send SIMPORT get(IsGameOver)}
+                {Wait IsGameOver}
+                if IsGameOver == false then {Step Player N MineState} end
+            end
+
+            proc{LaunchEachThread List Obs N}
+                case List
+                of nil then % No more player
+                    skip
+                [] Player|T then
+                    thread
+                        {Step Player N Obs} % WOUHOU
+                    end
+                    {LaunchEachThread T Obs N+1} % Launch next player thread
+                end
+            end
+
+            proc{SynchroEndGame Stream Alives}
+                case Stream
+                of sayDeath(ID)|T then
+                    {SynchroEndGame T Alives-1}
+                [] get(EndGame)|T then
+                    EndGame = Alives < 2
+                    {SynchroEndGame T Alives}
+                end
+            end
+
+            NextState
+        in
+            thread {SynchroEndGame SimStream Input.nbPlayer} end % Used to know the end of the game
+            {LaunchEachThread PlayersList State 1} % Launch a thread for each player
         end
 
         FirstState
    in
         FirstState = {Reset}
+        SIMPORT = {Port.new SimStream}
         if (Input.isTurnByTurn) then
             {LoopTurnByTurn FirstState}
         else
             {LoopSimultaneous FirstState}
+            {Logger debug('Game over.')}
         end
         /* {Application exit(0)} */
     end
