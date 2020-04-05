@@ -1,7 +1,7 @@
 LINGI1130 Project
 ====
 <p align="center">
-<img src="https://imgflip.com/i/3vgut4.jpg">
+<img src="http://i.imgflip.com/3vgut4.jpg">
 </p>
 
 
