@@ -207,6 +207,7 @@ in
     fun{SayMove State ID Direction} Newpos in
     /* Involves logging position, ignoring.
     State is thus not being modified */
+	if State.target_id == ID then 
         case Direction of
         north then
                 Newpos = pt(x: State.targetpos.x y:State.targetpos.y-1)
@@ -226,6 +227,10 @@ in
         else
             {AdjoinList State [targetpos#Newpos]}
         end
+	else%If targetid does not correspond 
+		if ID == State.id then State else
+		{AdjoinList State [target_id#ID]}end
+	end 
     end
 
     fun{SaySurface State ID}
@@ -315,6 +320,8 @@ in
                 if X stored == sonar X then target_x_valid else X stored = sonar stored.
 
             Do the same with Y . */
+			
+		if ID == State.id then State else
         if State.target_x_valid == true then
         NewX = State.targetpos.x %keep old results
         Xvalid = true
@@ -341,11 +348,16 @@ in
             end
         end
         {AdjoinList State [targetpos#pt(x:NewX y:NewY) target_y_valid#Yvalid target_x_valid#Xvalid]}
+		end
     end
 
     fun{SayDeath State ID}
             /* Involves logging other player's positions. Ignoring */
-        State
+			if ID == State.target_id then 
+				{AdjoinList State [target_id#nil]}
+			else
+				State
+			end
     end
 
     fun{SayDamageTaken State ID Damage LifeLeft}
@@ -369,7 +381,7 @@ in
             if X<1 then true else
                 if Y<1 then true else
 
-            if{List.nth {List.nth Input.map X} Y} == 1 then true else false end
+            if({List.nth {List.nth Input.map X} Y}==0)==false then true else false end
             end end end end
     end
 
@@ -425,7 +437,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(history:nil id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
+        State = playerstate(target_id:nil history:nil id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
 
 
         thread {TreatStream Stream State} end
