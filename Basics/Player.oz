@@ -18,6 +18,7 @@ define
     Logger = Input.logger
     IsIsland
     RandomNoIsland
+	IsInHistory
 
 
     %The following functions receive a playerstate and return an updated playerstate
@@ -89,8 +90,10 @@ in
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
     fun{Move State ?ID ?Position ?Direction}
-        if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
+		
+				
         RandomInt ReturnState Newpos DirTemp in
+        if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
         /* 0-1-2-3 NORTH EAST SOUTH WEST */
@@ -117,11 +120,20 @@ in
         if{IsIsland ReturnState.pos.x ReturnState.pos.y}then
                 {Move State ID Position Direction}
         else
+				%I must now check whether I can actually go on this spot
+				if({IsInHistory State ReturnState.pos}) then 
+					Direction = surface
+					ID = ReturnState.id
+					Position = State.pos
+					{AdjoinList ReturnState [pos#State.pos history#nil]}
+					
+				else 
                 Direction = DirTemp
                 ID = ReturnState.id
                 Position=ReturnState.pos
-                ReturnState
-        end
+                {AdjoinList ReturnState [history#(Position|ReturnState.history)]}
+				end 
+				end
         end%end of underwater
     end
     fun{Dive State}
@@ -322,6 +334,17 @@ in
         end
     end
 
+	fun{IsInHistory State Pos}
+		
+		fun{Recurs A}
+			case A of nil then false
+			[]pt(x:X y:Y)|T then
+				if Pos.x == X andthen Pos.y == Y then true else {Recurs T}end
+			end
+		end
+		in
+		{Recurs State.history}
+	end
 
     fun{StartPlayer Color ID}
     /*
@@ -336,7 +359,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
+        State = playerstate(history:nil id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
 
 
         thread {TreatStream Stream State} end
