@@ -18,7 +18,8 @@ define
     Logger = Input.logger
     IsIsland
     RandomNoIsland
-    TargetPosKnwon
+    TargetPosKnown
+	IsInHistory
 
 
     %The following functions receive a playerstate and return an updated playerstate
@@ -90,6 +91,8 @@ in
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
     fun{Move State ?ID ?Position ?Direction}
+		
+				
         RandomInt ReturnState Newpos DirTemp in
         if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
@@ -118,11 +121,20 @@ in
         if{IsIsland ReturnState.pos.x ReturnState.pos.y}then
                 {Move State ID Position Direction}
         else
+				%I must now check whether I can actually go on this spot
+				if({IsInHistory State ReturnState.pos}) then 
+					Direction = surface
+					ID = ReturnState.id
+					Position = State.pos
+					{AdjoinList ReturnState [pos#State.pos history#nil]}
+					
+				else 
                 Direction = DirTemp
                 ID = ReturnState.id
                 Position=ReturnState.pos
-                ReturnState
-        end
+                {AdjoinList ReturnState [history#(Position|ReturnState.history)]}
+				end 
+				end
         end%end of underwater
     end
     fun{Dive State}
@@ -133,7 +145,7 @@ in
     fun{ChargeItem State ?ID ?KindItem} ReturnState in
         /* This function gets to charge ONE item and has to choose which one.
         For testing purpose, we'll only charge the sonar in this player. */
-        if {TargetPosKnwon State} ==false  then
+        if {TargetPosKnown State} ==false  then
         /* I must estimate the other's position.  */
             if State.sonarcharge<Input.sonar then
                 ReturnState = {AdjoinList State [sonarcharge#State.sonarcharge+1]}
@@ -241,18 +253,16 @@ in
         []1 then
             Dmg = 1
         else
-            Message = null % No damage received
             Dmg = 0
         end
+		
         Hp = State.hp-Dmg
         ReturnState = {AdjoinList State [hp#Hp]}
 
         if ReturnState.hp=<0 then
             Message=sayDeath(ReturnState.id)
-        elseif Dmg > 0 then
-            Message=sayDamageTaken(ReturnState.id Dmg ReturnState.hp)
         else
-            Message = null
+			if Dmg == 0 then Message = null else Message = sayDamageTaken(State.id Dmg ReturnState.hp) end
         end
     ReturnState
     end
@@ -375,7 +385,7 @@ in
             pt(x:X y:Y)
         end
     end
-    fun{TargetPosKnwon State} Ret in
+    fun{TargetPosKnown State} Ret in
         if State.target_x_valid == true then
             if State.target_y_valid == true then
                 Ret = true
@@ -388,6 +398,18 @@ in
         end
         Ret
     end
+	
+	fun{IsInHistory State Pos}
+		
+		fun{Recurs A}
+			case A of nil then false
+			[]pt(x:X y:Y)|T then
+				if Pos.x == X andthen Pos.y == Y then true else {Recurs T}end
+			end
+		end
+		in
+		{Recurs State.history}
+	end
 
 
     fun{StartPlayer Color ID}
@@ -403,7 +425,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
+        State = playerstate(history:nil id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
 
 
         thread {TreatStream Stream State} end
