@@ -52,7 +52,7 @@ in
         of
         nil then {Logger debug('[Player.oz] Treatstream end of stream')}
         []initPosition(ID Position)|T then {TreatStream T {InitPosition State ID Position}}
-        []move(ID Position Direction)|T then {TreatStream T {Move State ID Position Direction}}
+        []move(ID Position Direction)|T then {TreatStream T {Move State ID Position Direction 0}}
         []dive|T then {TreatStream T {Dive State}}
         []chargeItem(ID Kinditem)|T then {TreatStream T {ChargeItem State ID Kinditem}}
         []fireItem(ID KindFire)|T then  {TreatStream T {FireItem State ID KindFire}}
@@ -89,10 +89,16 @@ in
     /* Note that InitPosition and move are the movements made by the player.
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
-    fun{Move State ?ID ?Position ?Direction}
-		
+    fun{Move State ?ID ?Position ?Direction Tries}
 				
         RandomInt ReturnState Newpos DirTemp in
+		
+		if Tries>8 then 
+			Direction = surface
+			Position = State.pos
+			ID =State.id
+			{AdjoinList State [underwater#false history#nil]}
+		else
         if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
@@ -117,24 +123,17 @@ in
         end %end of case
 
         /* Now binding ID and Position to the position chosen. Direction was already bound */
-        if{IsIsland ReturnState.pos.x ReturnState.pos.y}then
-                {Move State ID Position Direction}
+        if ({IsIsland ReturnState.pos.x ReturnState.pos.y} orelse {IsInHistory State ReturnState.pos}) then
+                {Move State ID Position Direction Tries+1}
         else
 				%I must now check whether I can actually go on this spot
-				if({IsInHistory State ReturnState.pos}) then 
-					Direction = surface
-					ID = ReturnState.id
-					Position = State.pos
-					{AdjoinList ReturnState [pos#State.pos history#nil]}
-					
-				else 
                 Direction = DirTemp
                 ID = ReturnState.id
                 Position=ReturnState.pos
                 {AdjoinList ReturnState [history#(Position|ReturnState.history)]}
-				end 
 				end
-        end%end of underwater
+        end
+		end 
     end
     fun{Dive State}
     /* Updating current state to note that I'm underwater */
