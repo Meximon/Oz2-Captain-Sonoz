@@ -5,6 +5,7 @@ import
 export
 	portWindow:StartWindow
 define
+	GeneralPort
 
 	StartWindow
 	TreatStream
@@ -33,6 +34,12 @@ define
 	StateModification
 
 	UpdateLife
+
+	DrawExplosion
+	DrawMyMine
+
+	MyBoat
+
 in
 
 %%%%% Build the initial window and set it up (call only once)
@@ -74,9 +81,10 @@ in
 			 1:label(text:"" borderwidth:5 relief:raised width:1 height:1 bg:c(153 76 0))
 			)
 
+
 %%%%% Labels for rows and columns
 	fun{Label V}
-		label(text:V borderwidth:5 relief:raised bg:c(255 51 51) ipadx:5 ipady:5)
+		label(text:V borderwidth:5 relief:raised bg:c(255 255 255) fg:c(0 0 0) ipadx:5 ipady:5)
 	end
 
 %%%%% Function to draw the map
@@ -147,6 +155,20 @@ in
 		end
 	end
 
+	fun{DrawMyMine Position}
+		fun{$ Grid State}
+			ID HandleScore Handle Mine Path LabelMine HandleMine X Y
+			in
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+			pt(x:X y:Y) = Position
+			LabelMine = label(text:"P" handle:HandleMine borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
+			{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
+			{HandleMine 'raise'()}
+			{Handle 'raise'()}
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:mine(HandleMine Position)|Mine path:Path)
+		end
+	end
+
 	local
 		fun{RmMine Grid Position List}
 			case List
@@ -160,6 +182,28 @@ in
 				end
 			end
 		end
+
+		ExplosionColors = [c(255 255 0) c(255 128 0) c(255 0 0)]
+		BorderWidths    = [5 6 7]
+
+		proc{Animation Grid Position State ColorList BorderList}
+			case ColorList#BorderList
+			of nil#nil then
+				skip
+			[] (MineColor|T1)#(BorderWidth|T2) then
+				ID HandleScore Handle Mine Path LabelMine HandleMine X Y HandleTest
+				in
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+				pt(x:X y:Y) = Position
+				LabelMine = label(text:"M" handle:HandleMine borderwidth:BorderWidth relief:raised bg:MineColor ipadx:5 ipady:5)
+				{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
+				{HandleMine 'raise'()}
+				{Handle 'raise'()}
+				{Delay 250}
+				{Grid.grid forget(HandleMine)}
+				{Animation Grid Position State T1 T2}
+			end
+		end
 	in
 		fun{RemoveMine Position}
 			fun{$ Grid State}
@@ -167,6 +211,7 @@ in
 				in
 				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
 				NewMine = {RmMine Grid Position Mine}
+				{Animation Grid Position State ExplosionColors BorderWidths}
 				guiPlayer(id:ID score:HandleScore submarine:Handle mines:NewMine path:Path)
 			end
 		end
@@ -190,7 +235,7 @@ in
 	in
 		guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
 		for H in Path.2 do
-	 {RemoveItem Grid H}
+	 	{RemoveItem Grid H}
 		end
 		guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path.1|nil)
 	end
@@ -238,17 +283,30 @@ in
 		end
 	end
 
+	fun{DrawExplosion Position}
+		fun{$ Grid State}
+			ID HandleScore Handle Explosion Path LabelExplosion HandleExplosion X Y
+			in
+			guiPlayer(id:ID score:HandleScore submarine:Handle explosions:Explosion path:Path) = State
+			pt(x:X y:Y) = Position
+			LabelExplosion = label(text:"" handle:HandleExplosion borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
+			{Grid.grid configure(LabelExplosion row:X+1 column:Y+1)}
+			{HandleExplosion 'raise'()}
+			{Handle 'raise'()}
+			guiPlayer(id:ID score:HandleScore submarine:Handle explosions:explosion(HandleExplosion Position)|Explosion path:Path)
+		end
+	end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	fun{StartWindow}
 		Stream
-		Port
 	in
-		{NewPort Stream Port}
+		{NewPort Stream GeneralPort}
 		thread
 			{TreatStream Stream nil nil}
 		end
-		Port
+		GeneralPort
 	end
 
 	proc{TreatStream Stream Grid State}
