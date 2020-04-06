@@ -4,7 +4,6 @@ following player. */
 functor
 import
     Input
-    System
     OS
 export
     portPlayer:StartPlayer
@@ -141,23 +140,16 @@ in
         {AdjoinList State [underwater#true]}
     end
 
-    fun{ChargeItem State ?ID ?KindItem}
-        /* This function gets to charge ONE item and has to choose which one.
-        For testing purpose, we'll only charge the sonar in this player. */
-        ReturnState SonarCharge in
-        SonarCharge = State.sonarcharge
-        if SonarCharge+1 == Input.sonar then
-            ReturnState = {AdjoinList State [sonarcharge#SonarCharge+1]}
-            KindItem=sonar
-        elseif SonarCharge+1>Input.sonar then
-            ReturnState = State
-            KindItem = sonar
-        else
-            ReturnState = {AdjoinList State [sonarcharge#SonarCharge+1]}
-            KindItem = null
-        end
+    fun{ChargeItem State ?ID ?KindItem} ReturnState in
+            if State.missilecharge<Input.missile then
+                ReturnState = {AdjoinList State [missilecharge#State.missilecharge+1]}
+            else
+                ReturnState = State
+            end
+            if ReturnState.missilecharge== Input.missile then KindItem = missile else KindItem = null end
+
+        %%{System.show ReturnState}
         ID = ReturnState.id
-        %{System.show ReturnState}
         ReturnState
     end
 
@@ -168,7 +160,6 @@ in
         if State.missilecharge == Input.missile then
             KindFire = missile({RandomNoIsland})
             ReturnState = {AdjoinList State [missilecharge#0]}
-
         elseif State.minecharge == Input.mine then
             KindFire = mine({RandomNoIsland})
             ReturnState = {AdjoinList State [minecharge#0]}
@@ -199,10 +190,33 @@ in
             State
     end
 
-    fun{SayMove State ID Direction}
+    fun{SayMove State ID Direction} Newpos in
     /* Involves logging position, ignoring.
     State is thus not being modified */
-        State
+	if State.target_id == ID then 
+        case Direction of
+        north then
+                Newpos = pt(x: State.targetpos.x y:State.targetpos.y-1)
+        [] east then
+            Newpos = pt(x: State.targetpos.x+1 y: State.targetpos.y)
+        [] south then
+            Newpos = pt(x: State.targetpos.x y: State.targetpos.y+1)
+        [] west then
+            Newpos = pt(x: State.targetpos.x-1 y: State.targetpos.y)
+        else
+            Newpos = pt(x: State.targetpos.x y: State.targetpos.y)
+        end
+        if {IsIsland State.targetpos.x State.targetpos.y }then
+
+        {AdjoinList State [targetpos#{RandomNoIsland} target_x_valid#false target_y_valid#false]}
+
+        else
+            {AdjoinList State [targetpos#Newpos]}
+        end
+	else%If targetid does not correspond 
+		if ID == State.id then State else
+		{AdjoinList State [target_id#ID]}end
+	end 
     end
 
     fun{SaySurface State ID}
@@ -230,18 +244,16 @@ in
         []1 then
             Dmg = 1
         else
-            Message = null % No damage received
             Dmg = 0
         end
+		
         Hp = State.hp-Dmg
         ReturnState = {AdjoinList State [hp#Hp]}
 
         if ReturnState.hp=<0 then
             Message=sayDeath(ReturnState.id)
-        elseif Dmg > 0 then
-            Message=sayDamageTaken(ReturnState.id Dmg ReturnState.hp)
         else
-            Message = null
+			if Dmg == 0 then Message = null else Message = sayDamageTaken(State.id Dmg ReturnState.hp) end
         end
     ReturnState
     end
@@ -286,14 +298,52 @@ in
         State
     end
 
-    fun{SayAnswerSonar State ID Answer}
-            /* Involves logging other player's positions. Ignoring */
-        State
+    fun{SayAnswerSonar State ID Answer} NewX NewY Xvalid Yvalid  in
+            /* I must comparte the sonar position to my known player position.
+            Treat X and Y separated.
+
+            if target_x_valid ignore X. else
+                if X stored == sonar X then target_x_valid else X stored = sonar stored.
+
+            Do the same with Y . */
+			
+		if ID == State.id then State else
+        if State.target_x_valid == true then
+        NewX = State.targetpos.x %keep old results
+        Xvalid = true
+        else
+            if State.targetpos.x == Answer.x then
+                Xvalid = true
+                NewX = State.targetpos.x
+            else
+                NewX = Answer.x
+                Xvalid = false
+            end
+        end
+
+        if State.target_y_valid == true then
+        NewY = State.targetpos.y %keep old results
+        Yvalid = true
+        else
+            if State.targetpos.x == Answer.x then
+                Yvalid = true
+                NewY= State.targetpos.y
+            else
+                NewY = Answer.y
+                Yvalid = false
+            end
+        end
+        {AdjoinList State [targetpos#pt(x:NewX y:NewY) target_y_valid#Yvalid target_x_valid#Xvalid]}
+		end
     end
 
     fun{SayDeath State ID}
             /* Involves logging other player's positions. Ignoring */
-        State
+			if ID == State.target_id then 
+				{AdjoinList State [target_id#nil]}
+			else
+				State
+			end
     end
 
     fun{SayDamageTaken State ID Damage LifeLeft}
@@ -317,7 +367,7 @@ in
             if X<1 then true else
                 if Y<1 then true else
 
-            if{List.nth {List.nth Input.map X} Y} == 1 then true else false end
+            if({List.nth {List.nth Input.map X} Y}==0)==false then true else false end
             end end end end
     end
 
@@ -333,7 +383,7 @@ in
             pt(x:X y:Y)
         end
     end
-
+	
 	fun{IsInHistory State Pos}
 		
 		fun{Recurs A}
@@ -345,6 +395,7 @@ in
 		in
 		{Recurs State.history}
 	end
+
 
     fun{StartPlayer Color ID}
     /*
@@ -359,7 +410,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(history:nil id:id(name: 'RandomPassive' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
+        State = playerstate(target_id:nil history:nil id:id(name: 'RandomAgressive' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
 
 
         thread {TreatStream Stream State} end

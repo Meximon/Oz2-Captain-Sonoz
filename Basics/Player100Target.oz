@@ -4,7 +4,6 @@ following player. */
 functor
 import
     Input
-    System
     OS
 export
     portPlayer:StartPlayer
@@ -143,8 +142,6 @@ in
     end
 
     fun{ChargeItem State ?ID ?KindItem} ReturnState in
-        /* This function gets to charge ONE item and has to choose which one.
-        For testing purpose, we'll only charge the sonar in this player. */
         if {TargetPosKnown State} ==false  then
         /* I must estimate the other's position.  */
             if State.sonarcharge<Input.sonar then
@@ -437,7 +434,7 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(target_id:nil history:nil id:id(name: 'BasicPlayer' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
+        State = playerstate(target_id:nil history:nil id:id(name: 'PlayerTargetting' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
 
 
         thread {TreatStream Stream State} end
