@@ -2,6 +2,7 @@ functor
 import
 	QTk at 'x-oz://system/wp/QTk.ozf'
 	Input
+	System
 export
 	portWindow:StartWindow
 define
@@ -123,49 +124,49 @@ in
 		{Grid.score configure(LabelScore row:1 column:Id sticky:wesn)}
 		{HandlePath 'raise'()}
 		{Handle 'raise'()}
-		guiPlayer(id:ID score:HandleScore submarine:Handle mines:nil path:HandlePath|nil)
+		guiPlayer(id:ID score:HandleScore submarine:Handle mines:nil path:HandlePath|nil lastPos:Position)
 	end
 
 	fun{MoveSubmarine Position}
 		fun{$ Grid State}
-			ID HandleScore Handle Mine Path NewPath X Y
+			ID HandleScore Handle Mine Path NewPath X Y LastPos
 		in
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 			pt(x:X y:Y) = Position
 			NewPath = {DrawPath Grid ID.color X Y}
 			{Grid.grid remove(Handle)}
 			{Grid.grid configure(Handle row:X+1 column:Y+1 sticky:wesn)}
 			{NewPath 'raise'()}
 			{Handle 'raise'()}
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:NewPath|Path)
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:NewPath|Path lastPos:Position)
 		end
 	end
 
 	fun{DrawMine Position}
 		fun{$ Grid State}
-			ID HandleScore Handle Mine Path LabelMine HandleMine X Y
+			ID HandleScore Handle Mine Path LabelMine HandleMine X Y LastPos
 			in
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 			pt(x:X y:Y) = Position
 			LabelMine = label(text:"M" handle:HandleMine borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
 			{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
 			{HandleMine 'raise'()}
 			{Handle 'raise'()}
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:mine(HandleMine Position)|Mine path:Path)
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:mine(HandleMine Position)|Mine path:Path lastPos:LastPos)
 		end
 	end
 
 	fun{DrawMyMine Position}
 		fun{$ Grid State}
-			ID HandleScore Handle Mine Path LabelMine HandleMine X Y
+			ID HandleScore Handle Mine Path LabelMine HandleMine X Y LastPos
 			in
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 			pt(x:X y:Y) = Position
 			LabelMine = label(text:"P" handle:HandleMine borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
 			{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
 			{HandleMine 'raise'()}
 			{Handle 'raise'()}
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:mine(HandleMine Position)|Mine path:Path)
+			guiPlayer(id:ID score:HandleScore submarine:Handle mines:mine(HandleMine Position)|Mine path:Path lastPos:LastPos)
 		end
 	end
 
@@ -191,9 +192,9 @@ in
 			of nil#nil then
 				skip
 			[] (MineColor|T1)#(BorderWidth|T2) then
-				ID HandleScore Handle Mine Path LabelMine HandleMine X Y HandleTest
+				ID HandleScore Handle Mine Path LabelMine HandleMine X Y HandleTest LastPos
 				in
-				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 				pt(x:X y:Y) = Position
 				LabelMine = label(text:"M" handle:HandleMine borderwidth:BorderWidth relief:raised bg:MineColor ipadx:5 ipady:5)
 				{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
@@ -207,12 +208,12 @@ in
 	in
 		fun{RemoveMine Position}
 			fun{$ Grid State}
-				ID HandleScore Handle Mine Path NewMine
+				ID HandleScore Handle Mine Path NewMine LastPos
 				in
-				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 				NewMine = {RmMine Grid Position Mine}
 				{Animation Grid Position State ExplosionColors BorderWidths}
-				guiPlayer(id:ID score:HandleScore submarine:Handle mines:NewMine path:Path)
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:NewMine path:Path lastPos:LastPos)
 			end
 		end
 	end
@@ -231,20 +232,20 @@ in
 
 
 	fun{RemovePath Grid State}
-		ID HandleScore Handle Mine Path
+		ID HandleScore Handle Mine Path LastPos
 	in
-		guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path) = State
+		guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 		for H in Path.2 do
 	 	{RemoveItem Grid H}
 		end
-		guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path.1|nil)
+		guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path.1|nil lastPos:LastPos)
 	end
 
 	fun{UpdateLife Life}
 		fun{$ Grid State}
 			HandleScore
 			in
-			guiPlayer(id:_ score:HandleScore submarine:_ mines:_ path:_) = State
+			guiPlayer(id:_ score:HandleScore submarine:_ mines:_ path:_ lastPos:_) = State
 			{HandleScore set(Life)}
 	 		State
 		end
@@ -254,7 +255,7 @@ in
 	fun{StateModification Grid WantedID State Fun}
 		case State
 		of nil then nil
-		[] guiPlayer(id:ID score:_ submarine:_ mines:_ path:_)|Next then
+		[] guiPlayer(id:ID score:_ submarine:_ mines:_ path:_ lastPos:_)|Next then
 			if (ID == WantedID) then
 				{Fun Grid State.1}|Next
 			else
@@ -266,7 +267,7 @@ in
 	fun{RemovePlayer Grid WantedID State}
 		case State
 		of nil then nil
-		[] guiPlayer(id:ID score:HandleScore submarine:Handle mines:M path:P)|Next then
+		[] guiPlayer(id:ID score:HandleScore submarine:Handle mines:M path:P lastPos:LastPos)|Next then
 			{HandleScore set(0)}
 			if (ID == WantedID) then
 				for H in P do
@@ -283,17 +284,67 @@ in
 		end
 	end
 
-	fun{DrawExplosion Position}
-		fun{$ Grid State}
-			ID HandleScore Handle Explosion Path LabelExplosion HandleExplosion X Y
+	local
+
+		ExplosionColors = [c(255 255 0) c(255 128 0) c(255 0 0)]
+		BorderWidths    = [5 6 7]
+
+		proc{GetPath Initial Final ?PtList}
+			Dx Dy Max Sx Sy
+			proc{Recursive PrevX PrevY RemainX RemainY SignX SignY ?Path}
+				NewX NewY
+				in
+				case RemainX#RemainY
+				of 0#0 then
+					Path = nil
+				[] 0#Y then
+					NewX = PrevX
+					NewY = (PrevY + SignY)
+					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY 0 RemainY-1 SignX SignY}
+				[] X#0 then
+					NewX = (PrevX + SignX)
+					NewY = PrevY
+					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 0 SignX SignY}
+				else
+					NewX = (PrevX + SignX)
+					NewY = (PrevY + SignY)
+					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 RemainY-1 SignX SignY}
+				end
+			end
 			in
-			guiPlayer(id:ID score:HandleScore submarine:Handle explosions:Explosion path:Path) = State
-			pt(x:X y:Y) = Position
-			LabelExplosion = label(text:"" handle:HandleExplosion borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
-			{Grid.grid configure(LabelExplosion row:X+1 column:Y+1)}
-			{HandleExplosion 'raise'()}
-			{Handle 'raise'()}
-			guiPlayer(id:ID score:HandleScore submarine:Handle explosions:explosion(HandleExplosion Position)|Explosion path:Path)
+			Dx = Final.x - Initial.x
+			Dy = Final.y - Initial.y
+			if Dx<0 then Sx = ~1 else Sx = 1 end
+			if Dy<0 then Sy = ~1 else Sx = 1 end
+			PtList = {Recursive Initial.x Initial.y {Abs Dx} {Abs Dy} Sx Sy}
+		end
+
+		proc{Animation Grid Final PositionsList}
+			case PositionsList
+			of nil then
+				skip
+			[] pt(x:X y:Y)|T then
+				LabelMissile HandleMissile Color
+				in
+				if (X==Final.x andthen Y==Final.y) then Color=red else Color=black end
+				LabelMissile = label(text:"M" handle:HandleMissile borderwidth:5 relief:raised bg:Color ipadx:5 ipady:5)
+				{Grid.grid configure(LabelMissile row:X+1 column:Y+1)}
+				{HandleMissile 'raise'()}
+				{Delay 200}
+				{Grid.grid forget(HandleMissile)}
+				{Animation Grid Final T}
+			end
+		end
+	in
+		fun{DrawExplosion Position}
+			fun{$ Grid State}
+				ID HandleScore Handle Mine Path NewMine PtPath LastPos
+				in
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
+				PtPath = {GetPath LastPos Position}
+				{Animation Grid Position PtPath}
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos)
+			end
 		end
 	end
 
@@ -331,7 +382,7 @@ in
 		[] removePlayer(ID)|T then
 			{TreatStream T Grid {RemovePlayer Grid ID State}}
 		[] explosion(ID Position)|T then
-			{TreatStream T Grid State}
+			{TreatStream T Grid {StateModification Grid ID State {DrawExplosion Position}}}
 		[] drone(ID Drone)|T then
 			{TreatStream T Grid State}
 		[] sonar(ID)|T then
