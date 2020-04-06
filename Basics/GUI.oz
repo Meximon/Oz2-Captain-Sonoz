@@ -2,7 +2,7 @@ functor
 import
 	QTk at 'x-oz://system/wp/QTk.ozf'
 	Input
-	System
+	/* System */
 export
 	portWindow:StartWindow
 define
@@ -37,10 +37,9 @@ define
 	UpdateLife
 
 	DrawExplosion
-	DrawMyMine
+	DrawDrone
 
-	MyBoat
-
+	Logger = Input.logger
 in
 
 %%%%% Build the initial window and set it up (call only once)
@@ -149,20 +148,6 @@ in
 			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 			pt(x:X y:Y) = Position
 			LabelMine = label(text:"M" handle:HandleMine borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
-			{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
-			{HandleMine 'raise'()}
-			{Handle 'raise'()}
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:mine(HandleMine Position)|Mine path:Path lastPos:LastPos)
-		end
-	end
-
-	fun{DrawMyMine Position}
-		fun{$ Grid State}
-			ID HandleScore Handle Mine Path LabelMine HandleMine X Y LastPos
-			in
-			guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
-			pt(x:X y:Y) = Position
-			LabelMine = label(text:"P" handle:HandleMine borderwidth:5 relief:raised bg:ID.color ipadx:5 ipady:5)
 			{Grid.grid configure(LabelMine row:X+1 column:Y+1)}
 			{HandleMine 'raise'()}
 			{Handle 'raise'()}
@@ -296,18 +281,22 @@ in
 				in
 				case RemainX#RemainY
 				of 0#0 then
+					{Logger debug('end of the created path')}
 					Path = nil
 				[] 0#Y then
 					NewX = PrevX
 					NewY = (PrevY + SignY)
+					{Logger debug(pt(x:NewX y:NewY))}
 					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY 0 RemainY-1 SignX SignY}
 				[] X#0 then
 					NewX = (PrevX + SignX)
 					NewY = PrevY
+					{Logger debug(pt(x:NewX y:NewY))}
 					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 0 SignX SignY}
-				else
+				[] X#Y then
 					NewX = (PrevX + SignX)
 					NewY = (PrevY + SignY)
+					{Logger debug(pt(x:NewX y:NewY))}
 					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 RemainY-1 SignX SignY}
 				end
 			end
@@ -315,24 +304,27 @@ in
 			Dx = Final.x - Initial.x
 			Dy = Final.y - Initial.y
 			if Dx<0 then Sx = ~1 else Sx = 1 end
-			if Dy<0 then Sy = ~1 else Sx = 1 end
+			if Dy<0 then Sy = ~1 else Sy = 1 end
 			PtList = {Recursive Initial.x Initial.y {Abs Dx} {Abs Dy} Sx Sy}
 		end
 
-		proc{Animation Grid Final PositionsList}
+
+		proc{Animation Grid State PositionsList}
 			case PositionsList
 			of nil then
 				skip
 			[] pt(x:X y:Y)|T then
-				LabelMissile HandleMissile Color
+				LabelMissile HandleMissile Handle Color Final
 				in
+				guiPlayer(id:_ score:_ submarine:Handle mines:_ path:_ lastPos:Final) = State
 				if (X==Final.x andthen Y==Final.y) then Color=red else Color=black end
 				LabelMissile = label(text:"M" handle:HandleMissile borderwidth:5 relief:raised bg:Color ipadx:5 ipady:5)
 				{Grid.grid configure(LabelMissile row:X+1 column:Y+1)}
 				{HandleMissile 'raise'()}
+				{Handle 'raise'()}
 				{Delay 200}
 				{Grid.grid forget(HandleMissile)}
-				{Animation Grid Final T}
+				{Animation Grid State T}
 			end
 		end
 	in
@@ -342,9 +334,41 @@ in
 				in
 				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
 				PtPath = {GetPath LastPos Position}
-				{Animation Grid Position PtPath}
-				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos)
+				{Animation Grid State PtPath}
+				State
 			end
+		end
+	end
+
+	local
+		proc{Drawline ID Drone Grid N}
+			HandleDrone LabelDrone
+			in
+			LabelDrone = label(text:"D" handle:HandleDrone borderwidth:5 relief:raised bg:white ipadx:5 ipady:5)
+			case Drone
+			of drone(row X) then
+				if N < Input.nColumn then
+					{Grid.grid configure(LabelDrone row:X+1 column:N+1)}
+					{HandleDrone 'raise'()}
+					{Delay 50}
+					{Grid.grid forget(HandleDrone)}
+					{Drawline ID Drone Grid N+1}
+				end
+			[] drone(column Y) then
+				if N < Input.nRow then
+					{Grid.grid configure(LabelDrone row:N+1 column:Y+1)}
+					{HandleDrone 'raise'()}
+					{Delay 50}
+					{Grid.grid forget(HandleDrone)}
+					{Drawline ID Drone Grid N+1}
+				end
+			else
+				skip
+			end
+		end
+	in
+		proc{DrawDrone ID Drone Grid}
+			{Drawline ID Drone Grid 1}
 		end
 	end
 
@@ -384,6 +408,7 @@ in
 		[] explosion(ID Position)|T then
 			{TreatStream T Grid {StateModification Grid ID State {DrawExplosion Position}}}
 		[] drone(ID Drone)|T then
+			{DrawDrone ID Drone Grid}
 			{TreatStream T Grid State}
 		[] sonar(ID)|T then
 			{TreatStream T Grid State}

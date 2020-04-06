@@ -22,15 +22,11 @@ define
 		Create a list with all players
 	*/
     	fun{RecursiveCreator ID Players Colors}
-            if (ID > Input.nbPlayer) then
-        			nil % Created all players
+            case Players#Colors
+            of (Kind|T1)#(Color|T2) then
+                {PlayerManager.playerGenerator Kind Color ID}|{RecursiveCreator ID+1 T1 T2}
             else
-    			case Players#Colors
-    			of (Kind|T1)#(Color|T2) then
-    				{PlayerManager.playerGenerator Kind Color ID}|{RecursiveCreator ID+1 T1 T2}
-    			else
-    				nil
-                end
+                nil % Created all players
             end
         end
 	in
@@ -430,8 +426,8 @@ define
          Handle the simultaneous game
         */
 
-            /* proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end */
-            proc{SimulateThinking} {Delay 5} end
+            proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end
+            /* proc{SimulateThinking} {Delay 5} end */
 
             proc{Step Player N Obs}
                 Answer
