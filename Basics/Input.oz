@@ -24,7 +24,6 @@ export
    logger:Logger
 import
 	System
-    Application
     OS
 define
    IsTurnByTurn
@@ -70,15 +69,10 @@ in
     		end
     	end
     	meth warning(Args)
-    		if @isLog then
-    			{System.show Args}
-    		end
+			{System.show Args}
     	end
     	meth err(Args)
-    		if @isLog then
-    			{System.show Args}
-                {Application.exit 1}
-    		end
+			{System.showError Args}
     	end
     end
 
@@ -94,7 +88,7 @@ in
    NRow = 10
    NColumn = 10
    PercentageIslands = 0.1
-   PercentageIndependantIslands = 1.0 % from 0:min to 1:max
+   PercentageIndependantIslands = 0.0 % from 0:min to 1:max
 
    /* FinalMap = [[0 0 0 0 0 0 0 0 0 0]
 	  [0 0 0 0 0 0 0 0 0 0]
@@ -109,6 +103,9 @@ in
 
     proc{GenerateMap ?GeneratedMap}
         fun{InitMap}
+        /*
+            Create a void (Optimized values) map
+        */
             proc{InitRows L}
                 case L
                 of nil then
@@ -125,9 +122,15 @@ in
             Map
         end
         fun{Get L X Y}
+        /*
+            Return the value X, Y in the Map
+        */
             {List.nth {List.nth L X} Y}
         end
         fun{GetCenterIslands Nb}
+        /*
+            Return a list with the center of each island
+        */
             if Nb < 1 then
                 nil
             else
@@ -135,6 +138,9 @@ in
             end
         end
         proc{FillWater Map}
+        /*
+            Fill void nodes with water:0
+        */
             proc{FillRows MapList}
                 proc{FillColumns Rows}
                     case Rows
@@ -161,7 +167,7 @@ in
         end
         proc{CreateSingleIsland Map N Node Try}
         /*
-            Create a single island
+            Create a single island from a previous node
         */
         if N > 0 then
             Elem
@@ -169,7 +175,7 @@ in
             NewY
             Dir
             in
-            Dir = {OS.rand} mod 4
+            Dir = {OS.rand} mod 8
             case Dir
             of 0 then % DOWN
                 {System.show dir(n:N dir:down)}
@@ -179,7 +185,7 @@ in
                 Elem = {Get Map NewX NewY}
             [] 1 then % UP
                 {System.show dir(n:N dir:up)}
-                if Node.x > 1 then
+                if Node.x > 1 then % Because mod does not work with negatives in Oz :)))) YESSAI
                     NewX = Node.x - 1
                 else
                     NewX = NRow
@@ -190,7 +196,7 @@ in
             [] 2 then % LEFT
                 {System.show dir(n:N dir:left)}
                 NewX = ((Node.x-1) mod NRow) +1
-                if Node.y > 1 then
+                if Node.y > 1 then % Because mod does not work with negatives in Oz :)))) YESSAI
                     NewY = Node.y - 1
                 else
                     NewY = NColumn
@@ -203,17 +209,57 @@ in
                 NewY = ((Node.y) mod NColumn) +1
                 {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
                 Elem = {Get Map NewX NewY}
+            [] 4 then % UP-LEFT
+                {System.show dir(n:N dir:up_left)}
+                if Node.x > 1 then % Because mod does not work with negatives in Oz :)))) YESSAI
+                    NewX = Node.x - 1
+                else
+                    NewX = NRow
+                end
+                if Node.y > 1 then % Because mod does not work with negatives in Oz :)))) YESSAI
+                    NewY = Node.y - 1
+                else
+                    NewY = NColumn
+                end
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
+                Elem = {Get Map NewX NewY}
+            [] 5 then % UP-RIGHT
+                {System.show dir(n:N dir:up_right)}
+                if Node.x > 1 then % Because mod does not work with negatives in Oz :)))) YESSAI
+                    NewX = Node.x - 1
+                else
+                    NewX = NRow
+                end
+                NewY = ((Node.y) mod NColumn) +1
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
+                Elem = {Get Map NewX NewY}
+            [] 6 then % DOWN-LEFT
+                {System.show dir(n:N dir:down_left)}
+                NewX = ((Node.x) mod NRow) +1
+                if Node.y > 1 then % Because mod does not work with negatives in Oz :)))) YESSAI
+                    NewY = Node.y - 1
+                else
+                    NewY = NColumn
+                end
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
+                Elem = {Get Map NewX NewY}
+            [] 7 then % DOWN-RIGHT
+                {System.show dir(n:N dir:down_right)}
+                NewX = ((Node.x) mod NRow) +1
+                NewY = ((Node.y) mod NColumn) +1
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
+                Elem = {Get Map NewX NewY}
             end
-            if {Value.isFree Elem} orelse Try == 0 then
+            if {Value.isFree Elem} orelse Try == 0 then % If {Elem} is not bound
                 NextNode
                 in
                 Elem = 1
                 NextNode = {OS.rand} mod 2
                 case NextNode
-                of 0 then % Same node
+                of 0 then % Choose the next node from the same node
                     {Logger debug(sameNode)}
                     {CreateSingleIsland Map N-1 Node 5}
-                [] 1 then % New Node
+                [] 1 then % Choose the next node from the new node
                     {Logger debug(nextNode)}
                     {CreateSingleIsland Map N-1 node(x:NewX y:NewY) 5}
                 end
@@ -235,21 +281,20 @@ in
         end
         NbNodes
         NbIslands
-        MapList
         CenterIslandsList
         MidNbNodesPerIsland
-        InitState
-
         in
         NbNodes = {FloatToInt {IntToFloat NRow*NColumn}*PercentageIslands}
-        NbIslands = {FloatToInt {IntToFloat NbNodes}*0.25} + {OS.rand} mod {FloatToInt ({IntToFloat NbNodes}*PercentageIndependantIslands*0.5)}
-        GeneratedMap = {InitMap}
-        CenterIslandsList = {GetCenterIslands NbIslands}
-        MidNbNodesPerIsland = NbNodes div NbIslands
-        /* InitState = state(nodesRemaining:NbNodes midNbNodes:MidNbNodesPerIsland nIslands:NbIslands centerIslands:CenterIslandsList)
-        {System.show InitState} */
-        {CreateIslands GeneratedMap CenterIslandsList MidNbNodesPerIsland}
-        {System.show GeneratedMap}
+        if PercentageIndependantIslands > 0.0 then
+            NbIslands = {FloatToInt {IntToFloat NbNodes}*0.25} + {OS.rand} mod {FloatToInt ({IntToFloat NbNodes}*PercentageIndependantIslands*0.5)}
+        else
+            NbIslands = 1 % Single main island
+        end
+        {Logger debug(newMap(nodes:NbNodes islands:NbIslands))}
+        GeneratedMap = {InitMap} % Initialise a map with {optimized} variables
+        CenterIslandsList = {GetCenterIslands NbIslands} % Get the center of all islands
+        MidNbNodesPerIsland = NbNodes div NbIslands % Get the mid number of nodes per islands
+        {CreateIslands GeneratedMap CenterIslandsList MidNbNodesPerIsland} % Main function that creates all islands and fill the void nodes with water
     end
 
     FinalMap = {GenerateMap}

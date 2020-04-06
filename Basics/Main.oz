@@ -3,7 +3,7 @@ import
     GUI
     Input
     PlayerManager
-    OS
+    /* OS */
     /* Application */
     /* System */
 
@@ -48,8 +48,7 @@ define
             ID Position
         in
     		{Send Player initPosition(ID Position)}
-    		{Wait ID}
-    		{Wait Position}
+    		{Wait ID} {Wait Position}
             {Logger debug(statePlayer(id:ID position:Position))}
     		{Send GUIPORT initPlayer(ID Position)}
     		{InitPlayers T}
@@ -59,9 +58,12 @@ define
 	proc{LaunchGame}
 	/*
 		Launch the main game
-		(Implemented like gym.Environment)
+		(Implemented like gym.Environment from OpenAI (reset, step): https://github.com/openai/gym)
 	*/
         proc{Broadcast Message List}
+        /*
+            Broadcast the message {Message} to all players
+        */
             case List
             of nil then
                 {Logger debug(broadcast(Message))}
@@ -112,6 +114,7 @@ define
                     NextState = {Record.adjoinList State [N#NextPlayerState]}
                 else % If it is simultaneous, sleep {Input.turnSurface} seconds
                     {Delay (1000*Input.turnSurface)}
+                    {Send Player dive} % After sleeping, can dive
                     NextState = State
                 end
             else
@@ -280,6 +283,9 @@ define
         end
 
         proc{TreatMine Player State ?NextState}
+        /*
+            Ask the player {Player} for firing a mine
+        */
             ID Mine
             in
             {Send Player fireMine(ID Mine)}
@@ -315,11 +321,10 @@ define
                                     in
                                     Nplayer = ID_Death.id
                                     UpdatedPlayerState = {Record.adjoinList MineState.Nplayer [dead#true]}
-                                    {Logger debug(updatedPlayerState(UpdatedPlayerState))}
                                     {Broadcast sayDeath(ID_Death) PlayersList}
                                     {Send GUIPORT removePlayer(ID_Death)}
                                     {Logger debug(death_remove(ID_Death))}
-                                    {Send SIMPORT sayDeath(ID_Death)}
+                                    {Send SIMPORT sayDeath(ID_Death)} % Update the simultaneous state
                                     UpdatedMineState = {Record.adjoinList MineState [alives#MineState.alives-1 Nplayer#UpdatedPlayerState]}
                                     {Logger debug(updatedMineState(UpdatedMineState))}
                                     NextMineState = {TreatMineMessage UpdatedMineState T N+1}
@@ -336,7 +341,7 @@ define
                     end
                     in
                     {Send GUIPORT removeMine(ID Position)}
-                    {Send GUIPORT explosion(ID Position)}
+                    /* {Send GUIPORT explosion(ID Position)} */
                     NextState = {TreatMineMessage State PlayersList 1}
                 else
                     {Logger warning(warning(id:ID mine:Mine warn:'Mine not understood'))}
@@ -486,7 +491,7 @@ define
                     in
                     N = ID.id
                     UpdatedPlayerState = {Record.adjoinList GameState.N [dead#true]}
-                    UpdatedGameState = {Record.adjoinList GameState [alives#GameState.alives-1]}
+                    UpdatedGameState = {Record.adjoinList GameState [alives#GameState.alives-1 N#UpdatedPlayerState]}
                     {SynchroEndGame T UpdatedGameState}
                 [] get(EndGame)|T then
                     EndGame = GameState.alives < 2
@@ -505,8 +510,6 @@ define
                     {SynchroEndGame T GameState}
                 end
             end
-
-            NextState
         in
             thread {SynchroEndGame SimStream State} end % Used to know the end of the game
             {LaunchEachThread PlayersList State 1} % Launch a thread for each player
