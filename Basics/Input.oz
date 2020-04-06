@@ -59,30 +59,30 @@ in
 %%% LOG %%%
 
 
-class LoggerClass
-	attr isLog
-	meth init(Value)
-		isLog := Value
-	end
-	meth debug(Args)
-		if @isLog then
-			{System.show Args}
-		end
-	end
-	meth warning(Args)
-		if @isLog then
-			{System.show Args}
-		end
-	end
-	meth err(Args)
-		if @isLog then
-			{System.show Args}
-            {Application.exit 1}
-		end
-	end
-end
+    class LoggerClass
+    	attr isLog
+    	meth init(Value)
+    		isLog := Value
+    	end
+    	meth debug(Args)
+    		if @isLog then
+    			{System.show Args}
+    		end
+    	end
+    	meth warning(Args)
+    		if @isLog then
+    			{System.show Args}
+    		end
+    	end
+    	meth err(Args)
+    		if @isLog then
+    			{System.show Args}
+                {Application.exit 1}
+    		end
+    	end
+    end
 
-Logger = {New LoggerClass init(true)}
+    Logger = {New LoggerClass init(true)}
 
 
 %%%% Style of game %%%%
@@ -94,9 +94,7 @@ Logger = {New LoggerClass init(true)}
    NRow = 10
    NColumn = 10
    PercentageIslands = 0.1
-   PercentageIndependantIslands = 0.5 % from 0:min to 1:max
-
-   FinalMap = {GenerateMap}
+   PercentageIndependantIslands = 1.0 % from 0:min to 1:max
 
    /* FinalMap = [[0 0 0 0 0 0 0 0 0 0]
 	  [0 0 0 0 0 0 0 0 0 0]
@@ -126,17 +124,14 @@ Logger = {New LoggerClass init(true)}
             {InitRows Map}
             Map
         end
-        fun{Get List X Y}
-            Row
-            in
-            Row = {List.nth List X}
-            {List.nth Row Y}
+        fun{Get L X Y}
+            {List.nth {List.nth L X} Y}
         end
         fun{GetCenterIslands Nb}
             if Nb < 1 then
                 nil
             else
-                node(x:({OS.rand} mod NRow)+1 y=({OS.rand} mod NColumn)+1)|{GetCenterIslands Nb-1}
+                node(x:({OS.rand} mod NRow)+1 y:({OS.rand} mod NColumn)+1)|{GetCenterIslands Nb-1}
             end
         end
         proc{FillWater Map}
@@ -146,9 +141,7 @@ Logger = {New LoggerClass init(true)}
                     of nil then
                         skip
                     [] H|T then
-                        if H == 1 then
-                            skip
-                        else
+                        if {Value.isFree H} then
                             H = 0
                         end
                         {FillColumns T}
@@ -160,12 +153,13 @@ Logger = {New LoggerClass init(true)}
                     skip
                 [] Row|T then
                     {FillColumns Row}
+                    {FillRows T}
                 end
             end
             in
             {FillRows Map}
         end
-        proc{CreateSingleIsland Map N Node}
+        proc{CreateSingleIsland Map N Node Try}
         /*
             Create a single island
         */
@@ -178,46 +172,65 @@ Logger = {New LoggerClass init(true)}
             Dir = {OS.rand} mod 4
             case Dir
             of 0 then % DOWN
-                NewX = (Node.x) mod NRow +1
-                NewY = (Node.y-1) mod NColumn +1
+                {System.show dir(n:N dir:down)}
+                NewX = ((Node.x) mod NRow) +1
+                NewY = ((Node.y-1) mod NColumn) +1
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
                 Elem = {Get Map NewX NewY}
             [] 1 then % UP
-                NewX = (Node.x-2) mod NRow +1
-                NewY = (Node.y-1) mod NColumn +1
+                {System.show dir(n:N dir:up)}
+                if Node.x > 1 then
+                    NewX = Node.x - 1
+                else
+                    NewX = NRow
+                end
+                NewY = ((Node.y-1) mod NColumn) +1
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
                 Elem = {Get Map NewX NewY}
             [] 2 then % LEFT
-                NewX = (Node.x-1) mod NRow +1
-                NewY = (Node.y-2) mod NColumn +1
+                {System.show dir(n:N dir:left)}
+                NewX = ((Node.x-1) mod NRow) +1
+                if Node.y > 1 then
+                    NewY = Node.y - 1
+                else
+                    NewY = NColumn
+                end
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
                 Elem = {Get Map NewX NewY}
             [] 3 then % RIGHT
-                NewX = (Node.x-1) mod NRow +1
-                NewY = (Node.y) mod NColumn +1
+                {System.show dir(n:N dir:right)}
+                NewX = ((Node.x-1) mod NRow) +1
+                NewY = ((Node.y) mod NColumn) +1
+                {Logger debug(info(prevX:Node.x prevY:Node.y x:NewX y:NewY maxX:NRow maxY:NColumn))}
                 Elem = {Get Map NewX NewY}
             end
-            if Elem == 1 then
-                {CreateSingleIsland Map N Node}
-            else
+            if {Value.isFree Elem} orelse Try == 0 then
                 NextNode
                 in
                 Elem = 1
                 NextNode = {OS.rand} mod 2
                 case NextNode
                 of 0 then % Same node
-                    {CreateSingleIsland Map N-1 Node}
+                    {Logger debug(sameNode)}
+                    {CreateSingleIsland Map N-1 Node 5}
                 [] 1 then % New Node
-                    {CreateSingleIsland Map N-1 node(x:NewX y:NewY)}
+                    {Logger debug(nextNode)}
+                    {CreateSingleIsland Map N-1 node(x:NewX y:NewY) 5}
                 end
+            else
+                {Logger debug(alreadyBind(x:NewX y:NewY))}
+                {CreateSingleIsland Map N Node Try-1}
             end
         end
         end
 
-        proc{CreateIslands Map State}
-            case State.centerIslands
+        proc{CreateIslands Map CenterIslandsList MidNodes}
+            case CenterIslandsList
             of nil then
                 {FillWater Map}
             [] Node|T then
-                {CreateSingleIsland Map State.midNbNodes Node}
-                {CreateIslands Map state(nodesRemaining:State.nodesRemaining-State.midNbNodes midNbNodes:State.midNbNodes nIslands:State.NbIslands-1 centerIslands:T)}
+                {CreateSingleIsland Map MidNodes Node 5}
+                {CreateIslands Map T MidNodes}
             end
         end
         NbNodes
@@ -225,19 +238,22 @@ Logger = {New LoggerClass init(true)}
         MapList
         CenterIslandsList
         MidNbNodesPerIsland
-        IslandsList
         InitState
 
         in
-        NbNodes = {Float.toInt NRow*NColumn*PercentageIslands}
-        NbIslands = {{OS.rand} mod (NbNodes*PercentageIndependantIslands)}
-        MapList = {InitMap}
+        NbNodes = {FloatToInt {IntToFloat NRow*NColumn}*PercentageIslands}
+        NbIslands = {FloatToInt {IntToFloat NbNodes}*0.25} + {OS.rand} mod {FloatToInt ({IntToFloat NbNodes}*PercentageIndependantIslands*0.5)}
+        GeneratedMap = {InitMap}
         CenterIslandsList = {GetCenterIslands NbIslands}
         MidNbNodesPerIsland = NbNodes div NbIslands
-        InitState = state(nodesRemaining:NbNodes midNbNodes:MidNbNodesPerIsland nIslands:NbIslands centerIslands:CenterIslandsList)
-        {CreateIslands MapList InitState}
-        GeneratedMap = MapList
+        /* InitState = state(nodesRemaining:NbNodes midNbNodes:MidNbNodesPerIsland nIslands:NbIslands centerIslands:CenterIslandsList)
+        {System.show InitState} */
+        {CreateIslands GeneratedMap CenterIslandsList MidNbNodesPerIsland}
+        {System.show GeneratedMap}
     end
+
+    FinalMap = {GenerateMap}
+    /* {System.show FinalMap} */
 
 %%%% Players description %%%%
 

@@ -76,7 +76,7 @@ define
         /*
             Treat the surface attribute of the submarine
         */
-            if State.N.isAtSurface andthen State.N.dead == false then
+            if State.N.isAtSurface andthen {Not State.N.dead} then
                 NewPlayerState
                 in
                 if State.N.timeRemaining > 0 then % Time remaining on the surface, just decrease is time remaining
@@ -429,7 +429,7 @@ define
             proc{SimulateThinking} {Delay 5} end
 
             proc{Step Player N Obs}
-                IsGameOver
+                Answer
                 SurfaceState
                 DirectionState
                 FireState
@@ -446,7 +446,6 @@ define
 
                 {SimulateThinking}
 
-                % If the direction is surface, return the state
                 % Charge item
                 {TreatCharge Player}
                 {SimulateThinking}
@@ -461,9 +460,9 @@ define
                 {SimulateThinking}
                 {Logger debug(mine(MineState))}
 
-                {Send SIMPORT get(IsGameOver)}
-                {Wait IsGameOver}
-                if IsGameOver == false then {Step Player N MineState} end
+                {Send SIMPORT isTerminated(N Answer)}
+                {Wait Answer}
+                if {Not Answer} then {Step Player N MineState} end
             end
 
             proc{LaunchEachThread List Obs N}
@@ -478,19 +477,38 @@ define
                 end
             end
 
-            proc{SynchroEndGame Stream Alives}
+            proc{SynchroEndGame Stream GameState}
                 case Stream
                 of sayDeath(ID)|T then
-                    {SynchroEndGame T Alives-1}
+                    UpdatedPlayerState
+                    UpdatedGameState
+                    N
+                    in
+                    N = ID.id
+                    UpdatedPlayerState = {Record.adjoinList GameState.N [dead#true]}
+                    UpdatedGameState = {Record.adjoinList GameState [alives#GameState.alives-1]}
+                    {SynchroEndGame T UpdatedGameState}
                 [] get(EndGame)|T then
-                    EndGame = Alives < 2
-                    {SynchroEndGame T Alives}
+                    EndGame = GameState.alives < 2
+                    {SynchroEndGame T GameState}
+                [] getState(State)|T then
+                    State = GameState
+                    {SynchroEndGame T GameState}
+                [] amIDead(N ?Answer)|T then
+                    Answer = GameState.N.dead
+                    {SynchroEndGame T GameState}
+                [] isTerminated(N ?Answer)|T then
+                    Answer = GameState.N.dead orelse GameState.alives < 2
+                    {SynchroEndGame T GameState}
+                [] H|T then
+                    {Logger warning(warning(warn:'message not understood in simultaneous stream handler' message:H))}
+                    {SynchroEndGame T GameState}
                 end
             end
 
             NextState
         in
-            thread {SynchroEndGame SimStream Input.nbPlayer} end % Used to know the end of the game
+            thread {SynchroEndGame SimStream State} end % Used to know the end of the game
             {LaunchEachThread PlayersList State 1} % Launch a thread for each player
         end
 
