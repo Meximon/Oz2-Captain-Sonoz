@@ -5,6 +5,7 @@ functor
 import
     Input
     OS
+	System
 export
     portPlayer:StartPlayer
 
@@ -14,7 +15,8 @@ define
 
 
     %Custom functions
-    Logger = Input.logger
+    Logger
+	LoggerClass
     IsIsland
     RandomNoIsland
     TargetPosKnown
@@ -44,6 +46,26 @@ define
 
 
 in
+	class LoggerClass
+    	attr isLog
+    	meth init(Value)
+    		isLog := Value
+    	end
+    	meth debug(Args)
+    		if @isLog then
+    			{System.show Args}
+    		end
+    	end
+    	meth warning(Args)
+			{System.show Args}
+    	end
+    	meth err(Args)
+			{System.showError Args}
+    	end
+    end
+
+    Logger = {New LoggerClass init(true)}
+
     proc{TreatStream Stream State}
     /*
     *   Treating and dispatching in the stream.
@@ -99,7 +121,11 @@ in
 			ID =State.id
 			{AdjoinList State [underwater#false history#nil]}
 		else
-        if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
+        if State.underwater ==false then 
+        ID = State.id
+        Direction = null
+        Position = State.pos
+        {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
         /* 0-1-2-3 NORTH EAST SOUTH WEST */
