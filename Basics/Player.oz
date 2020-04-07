@@ -4,7 +4,6 @@ following player. */
 functor
 import
     Input
-    System
     OS
 export
     portPlayer:StartPlayer
