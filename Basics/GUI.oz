@@ -2,6 +2,7 @@ functor
 import
 	QTk at 'x-oz://system/wp/QTk.ozf'
 	Input
+	System
 	/* System */
 export
 	portWindow:StartWindow
@@ -39,8 +40,29 @@ define
 	DrawExplosion
 	DrawDrone
 
-	Logger = Input.logger
+	Logger
+	LoggerClass
 in
+
+    class LoggerClass
+    	attr isLog
+    	meth init(Value)
+    		isLog := Value
+    	end
+    	meth debug(Args)
+    		if @isLog then
+    			{System.show Args}
+    		end
+    	end
+    	meth warning(Args)
+			{System.show Args}
+    	end
+    	meth err(Args)
+			{System.showError Args}
+    	end
+    end
+
+    Logger = {New LoggerClass init(true)}
 
 %%%%% Build the initial window and set it up (call only once)
 	fun{BuildWindow}
