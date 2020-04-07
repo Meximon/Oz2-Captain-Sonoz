@@ -1,11 +1,12 @@
 functor
 import
-	QTk at 'x-oz://system/wp/QTk.ozf'
+	Module
 	Input
 	/* System */
 export
 	portWindow:StartWindow
 define
+	[QTk] = {Module.link ['x-oz://system/wp/QTk.ozf']}
 	GeneralPort
 
 	StartWindow
@@ -40,6 +41,17 @@ define
 	DrawDrone
 
 	Logger = Input.logger
+
+	Missile0   = {QTk.newImage photo(file:'res/missiles/Missile0.gif')}
+	Missile45  = {QTk.newImage photo(file:'res/missiles/Missile45.gif')}
+	Missile90  = {QTk.newImage photo(file:'res/missiles/Missile90.gif')}
+	Missile135 = {QTk.newImage photo(file:'res/missiles/Missile135.gif')}
+	Missile180 = {QTk.newImage photo(file:'res/missiles/Missile180.gif')}
+	Missile225 = {QTk.newImage photo(file:'res/missiles/Missile225.gif')}
+	Missile270 = {QTk.newImage photo(file:'res/missiles/Missile270.gif')}
+	Missile315 = {QTk.newImage photo(file:'res/missiles/Missile315.gif')}
+	Missiles = missiles(0:Missile0 45:Missile45 90:Missile90 135:Missile135 180:Missile180 225:Missile225 270:Missile270 315:Missile315)
+
 in
 
 %%%%% Build the initial window and set it up (call only once)
@@ -48,6 +60,7 @@ in
 	in
 		Toolbar=lr(glue:we tbbutton(text:"Quit" glue:w action:toplevel#close))
 		Desc=grid(handle:Grid height:500 width:500)
+		/* Canvas= canvas(handle:CanvasMap width:500 height:500) */
 		DescScore=grid(handle:GridScore height:100 width:500)
 		Window={QTk.build td(Toolbar Desc DescScore)}
 
@@ -277,7 +290,7 @@ in
 		proc{GetPath Initial Final ?PtList}
 			Dx Dy Max Sx Sy
 			proc{Recursive PrevX PrevY RemainX RemainY SignX SignY ?Path}
-				NewX NewY
+				NewX NewY Missile
 				in
 				case RemainX#RemainY
 				of 0#0 then
@@ -286,18 +299,29 @@ in
 				[] 0#Y then
 					NewX = PrevX
 					NewY = (PrevY + SignY)
+					if NewY>PrevY then Missile = Missiles.0 else Missile = Missiles.180 end
 					{Logger debug(pt(x:NewX y:NewY))}
-					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY 0 RemainY-1 SignX SignY}
+					Path = Missile#pt(x:NewX y:NewY)|{Recursive NewX NewY 0 RemainY-1 SignX SignY}
 				[] X#0 then
 					NewX = (PrevX + SignX)
 					NewY = PrevY
+					if NewX>PrevX then Missile = Missiles.270 else Missile = Missiles.90 end
 					{Logger debug(pt(x:NewX y:NewY))}
-					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 0 SignX SignY}
+					Path = Missile#pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 0 SignX SignY}
 				[] X#Y then
 					NewX = (PrevX + SignX)
 					NewY = (PrevY + SignY)
+					if NewX>PrevX andthen NewY>PrevY then
+						Missile = Missiles.315
+					elseif NewX<PrevX andthen NewY>PrevY then
+						Missile = Missiles.45
+					elseif NewX>PrevX andthen NewY<PrevY then
+						Missile = Missiles.225
+					else
+						Missile = Missiles.135
+					end
 					{Logger debug(pt(x:NewX y:NewY))}
-					Path = pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 RemainY-1 SignX SignY}
+					Path = Missile#pt(x:NewX y:NewY)|{Recursive NewX NewY RemainX-1 RemainY-1 SignX SignY}
 				end
 			end
 			in
@@ -313,12 +337,13 @@ in
 			case PositionsList
 			of nil then
 				skip
-			[] pt(x:X y:Y)|T then
+			[] Missile#pt(x:X y:Y)|T then
 				LabelMissile HandleMissile Handle Color Final
 				in
 				guiPlayer(id:_ score:_ submarine:Handle mines:_ path:_ lastPos:Final) = State
 				if (X==Final.x andthen Y==Final.y) then Color=red else Color=black end
-				LabelMissile = label(text:"M" handle:HandleMissile borderwidth:5 relief:raised bg:Color ipadx:5 ipady:5)
+				/* LabelMissile = label(text:"M" handle:HandleMissile borderwidth:5 relief:raised bg:Color ipadx:5 ipady:5) */
+				LabelMissile = label(image:Missile handle:HandleMissile)
 				{Grid.grid configure(LabelMissile row:X+1 column:Y+1)}
 				{HandleMissile 'raise'()}
 				{Handle 'raise'()}
