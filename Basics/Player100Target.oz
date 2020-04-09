@@ -194,8 +194,19 @@ in
     return which one we fired. null otherwise */
         ReturnState in
         if State.missilecharge == Input.missile then
-            KindFire = missile(State.targetpos)
+			Dist Targetposition in 
+			Targetposition = State.targetpos
+			Dist = {Abs State.pos.x-Targetposition.x} + {Abs State.pos.y-Targetposition.y}
+			
+			if Dist =< 2
+			then 
+				KindFire = null
+				ReturnState = State
+			else 
+			
+            KindFire = missile(Targetposition)
             ReturnState = {AdjoinList State [missilecharge#0]}
+			end 
         elseif State.minecharge == Input.mine then
             KindFire = mine({RandomNoIsland})
             ReturnState = {AdjoinList State [minecharge#0]}
@@ -273,7 +284,6 @@ in
     fun{SayMissileExplode State ID Position ?Message} ReturnState ManDist Dmg Hp in
     /* Player with ID made a missile explode in a given position. Check whether the position corresponds and reply accordingly by binding Message */
         ManDist = {Abs State.pos.x-Position.x} + {Abs State.pos.y-Position.y}
-
         case ManDist of
         0 then
             Dmg = 2
@@ -282,6 +292,7 @@ in
         else
             Dmg = 0
         end
+
 		
         Hp = State.hp-Dmg
         ReturnState = {AdjoinList State [hp#Hp]}
@@ -398,8 +409,8 @@ in
     */
     %{System.show isisland(x:X y:Y)}
     /* C'est crado qu'on sache pas faire des if A or B or C then .. else .. */
-    if X>Input.nColumn then true else
-        if Y>Input.nRow then true else
+    if Y>Input.nColumn then true else
+        if X>Input.nRow then true else
             if X<1 then true else
                 if Y<1 then true else
 

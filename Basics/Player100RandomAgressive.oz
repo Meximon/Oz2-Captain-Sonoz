@@ -388,8 +388,8 @@ in
     */
     %{System.show isisland(x:X y:Y)}
     /* C'est crado qu'on sache pas faire des if A or B or C then .. else .. */
-    if X>Input.nColumn then true else
-        if Y>Input.nRow then true else
+    if Y>Input.nColumn then true else
+        if X>Input.nRow then true else
             if X<1 then true else
                 if Y<1 then true else
 
