@@ -76,12 +76,12 @@ in
     	end
     end
 
-    Logger = {New LoggerClass init(true)}
+    Logger = {New LoggerClass init(false)}
 
 
 %%%% Style of game %%%%
 
-   IsTurnByTurn = false
+   IsTurnByTurn = true
 
 %%%% Description of the map %%%%
 
@@ -308,8 +308,8 @@ in
 
 %%%% Thinking parameters (only in simultaneous) %%%%
 
-   ThinkMin = 500
-   ThinkMax = 3000
+   ThinkMin = 300
+   ThinkMax = 400
 
 %%%% Surface time/turns %%%%
 

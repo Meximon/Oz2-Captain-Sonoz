@@ -99,19 +99,19 @@ in
         case RandomInt of
         0 then
             DirTemp = north
-            Newpos = pt(x: State.pos.x y:State.pos.y-1)
+            Newpos = pt(x: State.pos.x-1 y:State.pos.y)
             ReturnState = {AdjoinList State [pos#Newpos]}
         []1 then
             DirTemp = east
-            Newpos = pt(x: State.pos.x+1 y: State.pos.y)
+            Newpos = pt(x: State.pos.x y: State.pos.y+1)
             ReturnState = {AdjoinList State [pos#Newpos]}
         [] 2 then
             DirTemp= south
-            Newpos = pt(x: State.pos.x y: State.pos.y+1)
+            Newpos = pt(x: State.pos.x+1 y: State.pos.y)
             ReturnState = {AdjoinList State [pos#Newpos]}
         [] 3 then
             DirTemp = west
-            Newpos = pt(x: State.pos.x-1 y: State.pos.y)
+            Newpos = pt(x: State.pos.x y: State.pos.y-1)
             ReturnState = {AdjoinList State [pos#Newpos]}
         end %end of case
 
@@ -272,6 +272,7 @@ in
     end
 
     fun{SayPassingSonar State ?Id ?Answer}
+
         Rand A in
         Rand = {OS.rand} mod 2
         if Rand == 0 then

@@ -21,7 +21,8 @@ define
     RandomNoIsland
     TargetPosKnown
 	IsInHistory
-
+	UpdateList
+	FindCoord
 
     %The following functions receive a playerstate and return an updated playerstate
     InitPosition
@@ -64,7 +65,7 @@ in
     	end
     end
 
-    Logger = {New LoggerClass init(true)}
+    Logger = {New LoggerClass init(false)}
 
     proc{TreatStream Stream State}
     /*
@@ -132,19 +133,19 @@ in
         case RandomInt of
         0 then
             DirTemp = north
-            Newpos = pt(x: State.pos.x y:State.pos.y-1)
+            Newpos = pt(x: State.pos.x-1 y:State.pos.y)
             ReturnState = {AdjoinList State [pos#Newpos]}
         []1 then
             DirTemp = east
-            Newpos = pt(x: State.pos.x+1 y: State.pos.y)
+            Newpos = pt(x: State.pos.x y: State.pos.y+1)
             ReturnState = {AdjoinList State [pos#Newpos]}
         [] 2 then
             DirTemp= south
-            Newpos = pt(x: State.pos.x y: State.pos.y+1)
+            Newpos = pt(x: State.pos.x+1 y: State.pos.y)
             ReturnState = {AdjoinList State [pos#Newpos]}
         [] 3 then
             DirTemp = west
-            Newpos = pt(x: State.pos.x-1 y: State.pos.y)
+            Newpos = pt(x: State.pos.x y: State.pos.y-1)
             ReturnState = {AdjoinList State [pos#Newpos]}
         end %end of case
 
@@ -203,9 +204,14 @@ in
 				KindFire = null
 				ReturnState = State
 			else 
+				if State.missilesdone > Input.maxDamage then
+				            KindFire = missile(Targetposition)
+							ReturnState = {AdjoinList State [missilecharge#0 target_x_valid#false target_y_valid#false sonarhistory#nil State.missilesdone#0]}
+				else
 			
-            KindFire = missile(Targetposition)
-            ReturnState = {AdjoinList State [missilecharge#0]}
+				KindFire = missile(Targetposition)
+				ReturnState = {AdjoinList State [missilecharge#0 missilesdone#(State.missilesdone +1)]}
+			end 
 			end 
         elseif State.minecharge == Input.mine then
             KindFire = mine({RandomNoIsland})
@@ -237,34 +243,53 @@ in
             State
     end
 
-    fun{SayMove State ID Direction} Newpos in
-    /* Involves logging position, ignoring.
-    State is thus not being modified */
-	if State.target_id == ID then 
-        case Direction of
-        north then
-                Newpos = pt(x: State.targetpos.x y:State.targetpos.y-1)
-        [] east then
-            Newpos = pt(x: State.targetpos.x+1 y: State.targetpos.y)
-        [] south then
-            Newpos = pt(x: State.targetpos.x y: State.targetpos.y+1)
-        [] west then
-            Newpos = pt(x: State.targetpos.x-1 y: State.targetpos.y)
-        else
-            Newpos = pt(x: State.targetpos.x y: State.targetpos.y)
-        end
-        if {IsIsland State.targetpos.x State.targetpos.y }then
-
-        {AdjoinList State [targetpos#{RandomNoIsland} target_x_valid#false target_y_valid#false]}
-
-        else
-            {AdjoinList State [targetpos#Newpos]}
-        end
-	else%If targetid does not correspond 
-		if ID == State.id then State else
-		{AdjoinList State [target_id#ID]}end
-	end 
-    end
+	fun{UpdateList List Xinc Yinc Negative} Position in 
+		case List of nil then nil
+		[]H|T then 
+			if Negative then 
+				Position = pt(x:(H.x - Xinc) y:(H.y -Yinc))
+			else
+			Position = pt(x:(H.x + Xinc) y:(H.y +Yinc))
+			end 
+			Position|{UpdateList T Xinc Yinc Negative}
+			
+		end
+	end
+	fun{SayMove State ID Direction} Newpos NewList in 
+		if ID == State.id then State
+		else
+			if State.target_id == nil then {AdjoinList State [target_id#ID]}
+			else 
+				if State.target_id == ID then 
+					case Direction of
+				north then
+					Newpos = pt(x: State.targetpos.x-1 y:State.targetpos.y)
+					NewList = {UpdateList State.sonarhistory 1 0 true}
+				[] east then
+					Newpos = pt(x: State.targetpos.x y: State.targetpos.y+1)
+					NewList = {UpdateList State.sonarhistory 0 1 false}
+				[] south then
+					Newpos = pt(x: State.targetpos.x+1 y: State.targetpos.y)
+					NewList = {UpdateList State.sonarhistory 1 0 false}
+				[] west then
+					Newpos = pt(x: State.targetpos.x y: State.targetpos.y-1)
+					NewList = {UpdateList State.sonarhistory 0 1 true}
+				else
+					Newpos = pt(x: State.targetpos.x y: State.targetpos.y)
+					NewList = State.sonarhistory
+				end
+				if {IsIsland Newpos.x Newpos.y} then 
+				{AdjoinList State [targetpos#{RandomNoIsland} sonarhistory#NewList]}
+				else 
+				{AdjoinList State [targetpos#Newpos sonarhistory#NewList]}
+				end 
+				else
+				State
+				end
+				
+			end
+		end
+	end
 
     fun{SaySurface State ID}
     /* Involves logging position, ignoring. */
@@ -331,8 +356,8 @@ in
         State
     end
 
-    fun{SayPassingSonar State ?Id ?Answer}
-        Rand A in
+    fun{SayPassingSonar State ?Id ?Reply}
+        Rand A Answer in
         Rand = {OS.rand} mod 2
         if Rand == 0 then
             A = {OS.rand} mod Input.nRow+1
@@ -341,53 +366,66 @@ in
             A = {OS.rand} mod Input.nColumn+1
             Answer = pt(y:State.pos.y x:A)
         end
+		Reply = pt(x:0 y:0)
         Id = State.id
         State
     end
 
-    fun{SayAnswerSonar State ID Answer} NewX NewY Xvalid Yvalid  in
-            /* I must comparte the sonar position to my known player position.
-            Treat X and Y separated.
-
-            if target_x_valid ignore X. else
-                if X stored == sonar X then target_x_valid else X stored = sonar stored.
-
-            Do the same with Y . */
-			
-		if ID == State.id then State else
-        if State.target_x_valid == true then
-        NewX = State.targetpos.x %keep old results
-        Xvalid = true
-        else
-            if State.targetpos.x == Answer.x then
-                Xvalid = true
-                NewX = State.targetpos.x
-            else
-                NewX = Answer.x
-                Xvalid = false
-            end
-        end
-
-        if State.target_y_valid == true then
-        NewY = State.targetpos.y %keep old results
-        Yvalid = true
-        else
-            if State.targetpos.x == Answer.x then
-                Yvalid = true
-                NewY= State.targetpos.y
-            else
-                NewY = Answer.y
-                Yvalid = false
-            end
-        end
-        {AdjoinList State [targetpos#pt(x:NewX y:NewY) target_y_valid#Yvalid target_x_valid#Xvalid]}
+	fun{FindCoord State Answer} Xknown Yknown X Y
+		fun{CountX List}
+			case List of nil then 0
+			[] H|T then 
+				if H.x == Answer.x then 1+{CountX T}
+				else
+					{CountX T}
+				end 
+			end
+		end
+		
+		fun{CountY List}
+			case List of nil then 0
+			[] H|T then 
+				if H.y == Answer.y then 1+{CountY T}
+				else
+					{CountX T}
+				end 
+			end
+		end
+		in 
+		
+		if {CountY State.sonarhistory}>3 then 
+		Yknown = true 
+		Y = Answer.y
+		else 
+		Yknown = false 
+		Y = State.targetpos.y
+		end
+		if {CountX State.sonarhistory}>3 then 
+		Xknown = true 
+		X = Answer.x
+		else 
+		Xknown = false
+		X = State.targetpos.x
+		end
+		{System.show State.sonarhistory}
+		{AdjoinList State [targetpos#pt(x:X y:Y) target_x_valid#Xknown target_y_valid#Yknown]}
+	end
+    fun{SayAnswerSonar State ID Answer} TempState NewHistory in
+		if State.id.id == ID.id then State else
+			if ID.id == State.target_id.id then 
+				NewHistory = Answer|State.sonarhistory
+				TempState = {AdjoinList State [sonarhistory#NewHistory]}
+				{FindCoord TempState Answer}			
+			else
+			State
+			 end
 		end
     end
 
     fun{SayDeath State ID}
             /* Involves logging other player's positions. Ignoring */
 			if ID == State.target_id then 
-				{AdjoinList State [target_id#nil]}
+				{AdjoinList State [target_id#nil sonarhistory#nil target_x_valid#false target_y_valid#false missilesdone#0]}
 			else
 				State
 			end
@@ -470,7 +508,8 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(target_id:nil history:nil id:id(name: 'PlayerTargetting' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 target_x_valid: false target_y_valid: false sonarcharge:0 targetpos:{RandomNoIsland} minecharge:0 dronecharge:0)
+        State = playerstate(target_id:nil history:nil id:id(name: 'PlayerTargetting' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 
+		sonarcharge:0 targetpos:{RandomNoIsland} sonarhistory:nil target_x_valid:false target_y_valid:false minecharge:0 dronecharge:0 missilesdone:0)
 
 
         thread {TreatStream Stream State} end
