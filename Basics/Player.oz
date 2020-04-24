@@ -5,6 +5,7 @@ functor
 import
     Input
     OS
+	System
 export
     portPlayer:StartPlayer
 
@@ -14,11 +15,14 @@ define
 
 
     %Custom functions
-    Logger = Input.logger
+    Logger
+	LoggerClass
     IsIsland
     RandomNoIsland
+    TargetPosKnown
 	IsInHistory
-
+	UpdateList
+	FindCoord
 
     %The following functions receive a playerstate and return an updated playerstate
     InitPosition
@@ -43,6 +47,26 @@ define
 
 
 in
+	class LoggerClass
+    	attr isLog
+    	meth init(Value)
+    		isLog := Value
+    	end
+    	meth debug(Args)
+    		if @isLog then
+    			{System.show Args}
+    		end
+    	end
+    	meth warning(Args)
+			{System.show Args}
+    	end
+    	meth err(Args)
+			{System.showError Args}
+    	end
+    end
+
+    Logger = {New LoggerClass init(false)}
+
     proc{TreatStream Stream State}
     /*
     *   Treating and dispatching in the stream.
@@ -51,7 +75,7 @@ in
         of
         nil then {Logger debug('[Player.oz] Treatstream end of stream')}
         []initPosition(ID Position)|T then {TreatStream T {InitPosition State ID Position}}
-        []move(ID Position Direction)|T then {TreatStream T {Move State ID Position Direction}}
+        []move(ID Position Direction)|T then {TreatStream T {Move State ID Position Direction 0}}
         []dive|T then {TreatStream T {Dive State}}
         []chargeItem(ID Kinditem)|T then {TreatStream T {ChargeItem State ID Kinditem}}
         []fireItem(ID KindFire)|T then  {TreatStream T {FireItem State ID KindFire}}
@@ -88,11 +112,21 @@ in
     /* Note that InitPosition and move are the movements made by the player.
     Here, I implement them moving in a random way. The moving algorithm has to be optimised
     in order to win the game instead of just randomly moving */
-    fun{Move State ?ID ?Position ?Direction}
-		
+    fun{Move State ?ID ?Position ?Direction Tries}
 				
         RandomInt ReturnState Newpos DirTemp in
-        if State.underwater ==false then {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
+		
+		if Tries>8 then 
+			Direction = surface
+			Position = State.pos
+			ID =State.id
+			{AdjoinList State [underwater#false history#nil]}
+		else
+        if State.underwater ==false then 
+        ID = State.id
+        Direction = null
+        Position = State.pos
+        {Logger err('[Player.oz] You asked me to move while Im on the surface')} State else
         RandomInt = {OS.rand}mod 4 % --> returns 0,1,2,3
         %{System.show RandomInt}
         /* 0-1-2-3 NORTH EAST SOUTH WEST */
@@ -116,30 +150,23 @@ in
         end %end of case
 
         /* Now binding ID and Position to the position chosen. Direction was already bound */
-        if{IsIsland ReturnState.pos.x ReturnState.pos.y}then
-                {Move State ID Position Direction}
+        if ({IsIsland ReturnState.pos.x ReturnState.pos.y} orelse {IsInHistory State ReturnState.pos}) then
+                {Move State ID Position Direction Tries+1}
         else
 				%I must now check whether I can actually go on this spot
-				if({IsInHistory State ReturnState.pos}) then 
-					Direction = surface
-					ID = ReturnState.id
-					Position = State.pos
-					{AdjoinList ReturnState [pos#State.pos history#nil]}
-					
-				else 
                 Direction = DirTemp
                 ID = ReturnState.id
                 Position=ReturnState.pos
                 {AdjoinList ReturnState [history#(Position|ReturnState.history)]}
-				end 
 				end
-        end%end of underwater
+        end
+		end 
     end
     fun{Dive State}
     /* Updating current state to note that I'm underwater */
         {AdjoinList State [underwater#true]}
     end
-
+	
     fun{ChargeItem State ?ID ?KindItem}
         /* This function gets to charge ONE item and has to choose which one.
         For testing purpose, we'll only charge the sonar in this player. */
@@ -165,9 +192,24 @@ in
     return which one we fired. null otherwise */
         ReturnState in
         if State.missilecharge == Input.missile then
-            KindFire = missile({RandomNoIsland})
-            ReturnState = {AdjoinList State [missilecharge#0]}
-
+			Dist Targetposition in 
+			Targetposition = State.targetpos
+			Dist = {Abs State.pos.x-Targetposition.x} + {Abs State.pos.y-Targetposition.y}
+			
+			if Dist =< 2
+			then 
+				KindFire = null
+				ReturnState = State
+			else 
+				if State.missilesdone > Input.maxDamage then
+				            KindFire = missile(Targetposition)
+							ReturnState = {AdjoinList State [missilecharge#0 target_x_valid#false target_y_valid#false sonarhistory#nil State.missilesdone#0]}
+				else
+			
+				KindFire = missile(Targetposition)
+				ReturnState = {AdjoinList State [missilecharge#0 missilesdone#(State.missilesdone +1)]}
+			end 
+			end 
         elseif State.minecharge == Input.mine then
             KindFire = mine({RandomNoIsland})
             ReturnState = {AdjoinList State [minecharge#0]}
@@ -198,11 +240,53 @@ in
             State
     end
 
-    fun{SayMove State ID Direction}
-    /* Involves logging position, ignoring.
-    State is thus not being modified */
-        State
-    end
+	fun{UpdateList List Xinc Yinc Negative} Position in 
+		case List of nil then nil
+		[]H|T then 
+			if Negative then 
+				Position = pt(x:(H.x - Xinc) y:(H.y -Yinc))
+			else
+			Position = pt(x:(H.x + Xinc) y:(H.y +Yinc))
+			end 
+			Position|{UpdateList T Xinc Yinc Negative}
+			
+		end
+	end
+	fun{SayMove State ID Direction} Newpos NewList in 
+		if ID == State.id then State
+		else
+			if State.target_id == nil then {AdjoinList State [target_id#ID]}
+			else 
+				if State.target_id == ID then 
+					case Direction of
+				north then
+					Newpos = pt(x: State.targetpos.x-1 y:State.targetpos.y)
+					NewList = {UpdateList State.sonarhistory 1 0 true}
+				[] east then
+					Newpos = pt(x: State.targetpos.x y: State.targetpos.y+1)
+					NewList = {UpdateList State.sonarhistory 0 1 false}
+				[] south then
+					Newpos = pt(x: State.targetpos.x+1 y: State.targetpos.y)
+					NewList = {UpdateList State.sonarhistory 1 0 false}
+				[] west then
+					Newpos = pt(x: State.targetpos.x y: State.targetpos.y-1)
+					NewList = {UpdateList State.sonarhistory 0 1 true}
+				else
+					Newpos = pt(x: State.targetpos.x y: State.targetpos.y)
+					NewList = State.sonarhistory
+				end
+				if {IsIsland Newpos.x Newpos.y} then 
+				{AdjoinList State [targetpos#{RandomNoIsland} sonarhistory#NewList]}
+				else 
+				{AdjoinList State [targetpos#Newpos sonarhistory#NewList]}
+				end 
+				else
+				State
+				end
+				
+			end
+		end
+	end
 
     fun{SaySurface State ID}
     /* Involves logging position, ignoring. */
@@ -222,25 +306,23 @@ in
     fun{SayMissileExplode State ID Position ?Message} ReturnState ManDist Dmg Hp in
     /* Player with ID made a missile explode in a given position. Check whether the position corresponds and reply accordingly by binding Message */
         ManDist = {Abs State.pos.x-Position.x} + {Abs State.pos.y-Position.y}
-
         case ManDist of
         0 then
             Dmg = 2
         []1 then
             Dmg = 1
         else
-            Message = null % No damage received
             Dmg = 0
         end
+
+		
         Hp = State.hp-Dmg
         ReturnState = {AdjoinList State [hp#Hp]}
 
         if ReturnState.hp=<0 then
             Message=sayDeath(ReturnState.id)
-        elseif Dmg > 0 then
-            Message=sayDamageTaken(ReturnState.id Dmg ReturnState.hp)
         else
-            Message = null
+			if Dmg == 0 then Message = null else Message = sayDamageTaken(State.id Dmg ReturnState.hp) end
         end
     ReturnState
     end
@@ -271,9 +353,8 @@ in
         State
     end
 
-    fun{SayPassingSonar State ?Id ?Answer}
-
-        Rand A in
+    fun{SayPassingSonar State ?Id ?Reply}
+        Rand A Answer in
         Rand = {OS.rand} mod 2
         if Rand == 0 then
             A = {OS.rand} mod Input.nRow+1
@@ -282,18 +363,69 @@ in
             A = {OS.rand} mod Input.nColumn+1
             Answer = pt(y:State.pos.y x:A)
         end
+		Reply = pt(x:0 y:0)
         Id = State.id
         State
     end
 
-    fun{SayAnswerSonar State ID Answer}
-            /* Involves logging other player's positions. Ignoring */
-        State
+	fun{FindCoord State Answer} Xknown Yknown X Y
+		fun{CountX List}
+			case List of nil then 0
+			[] H|T then 
+				if H.x == Answer.x then 1+{CountX T}
+				else
+					{CountX T}
+				end 
+			end
+		end
+		
+		fun{CountY List}
+			case List of nil then 0
+			[] H|T then 
+				if H.y == Answer.y then 1+{CountY T}
+				else
+					{CountX T}
+				end 
+			end
+		end
+		in 
+		
+		if {CountY State.sonarhistory}>3 then 
+		Yknown = true 
+		Y = Answer.y
+		else 
+		Yknown = false 
+		Y = State.targetpos.y
+		end
+		if {CountX State.sonarhistory}>3 then 
+		Xknown = true 
+		X = Answer.x
+		else 
+		Xknown = false
+		X = State.targetpos.x
+		end
+		{System.show State.sonarhistory}
+		{AdjoinList State [targetpos#pt(x:X y:Y) target_x_valid#Xknown target_y_valid#Yknown]}
+	end
+    fun{SayAnswerSonar State ID Answer} TempState NewHistory in
+		if State.id.id == ID.id then State else
+			if ID.id == State.target_id.id then 
+				NewHistory = Answer|State.sonarhistory
+				TempState = {AdjoinList State [sonarhistory#NewHistory]}
+				{FindCoord TempState Answer}			
+			else
+			State
+			 end
+		end
     end
 
     fun{SayDeath State ID}
             /* Involves logging other player's positions. Ignoring */
-        State
+			if ID == State.target_id then 
+				{AdjoinList State [target_id#nil sonarhistory#nil target_x_valid#false target_y_valid#false missilesdone#0]}
+			else
+				State
+			end
     end
 
     fun{SayDamageTaken State ID Damage LifeLeft}
@@ -317,7 +449,7 @@ in
             if X<1 then true else
                 if Y<1 then true else
 
-            if{List.nth {List.nth Input.map X} Y} == 1 then true else false end
+            if({List.nth {List.nth Input.map X} Y}==0)==false then true else false end
             end end end end
     end
 
@@ -333,7 +465,20 @@ in
             pt(x:X y:Y)
         end
     end
+    fun{TargetPosKnown State} Ret in
+        if State.target_x_valid == true then
+            if State.target_y_valid == true then
+                Ret = true
+            else
+                Ret = false
+            end
 
+        else
+            Ret = false
+        end
+        Ret
+    end
+	
 	fun{IsInHistory State Pos}
 		
 		fun{Recurs A}
@@ -345,6 +490,7 @@ in
 		in
 		{Recurs State.history}
 	end
+
 
     fun{StartPlayer Color ID}
     /*
@@ -359,7 +505,8 @@ in
         /*
         *   Playerstate contains all information about the current player
         */
-        State = playerstate(history:nil id:id(name: 'RandomPassive' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 minecharge:0 sonarcharge: 0 dronecharge:0)
+        State = playerstate(target_id:nil history:nil id:id(name: 'PlayerTargetting' id: ID color:Color) hp:Input.maxDamage underwater:false missilecharge: 0 
+		sonarcharge:0 targetpos:{RandomNoIsland} sonarhistory:nil target_x_valid:false target_y_valid:false minecharge:0 dronecharge:0 missilesdone:0)
 
 
         thread {TreatStream Stream State} end

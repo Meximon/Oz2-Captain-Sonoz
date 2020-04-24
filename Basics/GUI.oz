@@ -39,6 +39,7 @@ define
 
 	DrawExplosion
 	DrawDrone
+	DrawSonar
 
 	Logger = Input.logger
 
@@ -50,6 +51,7 @@ define
 	Missile225 = {QTk.newImage photo(file:'res/missiles/Missile225.gif')}
 	Missile270 = {QTk.newImage photo(file:'res/missiles/Missile270.gif')}
 	Missile315 = {QTk.newImage photo(file:'res/missiles/Missile315.gif')}
+	SonarImg = {QTk.newImage photo(file:'res/missiles/Sonar.gif')}
 	Missiles = missiles(0:Missile0 45:Missile45 90:Missile90 135:Missile135 180:Missile180 225:Missile225 270:Missile270 315:Missile315)
 
 in
@@ -364,6 +366,52 @@ in
 			end
 		end
 	end
+	
+		local
+
+		ExplosionColors = [c(255 255 0) c(255 128 0) c(255 0 0)]
+		BorderWidths    = [5 6 7]
+
+		proc{GetPath Position ?PtList}
+		A B C D in 
+		A = pt(x:Position.x+1 y:Position.y)
+		B= pt(x:Position.x-1 y:Position.y)
+		C = pt(x:Position.x y:Position.y+1)
+		D = pt(x:Position.x y:Position.y-1)
+		PtList = A|C|B|D|A|C|B|D|A|C|B|D|nil
+		end
+
+
+		proc{Animation Grid State PositionsList}
+			case PositionsList
+			of nil then
+				skip
+			[] pt(x:X y:Y)|T then
+				LabelMissile HandleMissile Handle Color Final
+				in
+				guiPlayer(id:_ score:_ submarine:Handle mines:_ path:_ lastPos:Final) = State
+				Color=red
+				LabelMissile = label(image:SonarImg handle:HandleMissile)
+				{Grid.grid configure(LabelMissile row:X+1 column:Y+1)}
+				{HandleMissile 'raise'()}
+				{Handle 'raise'()}
+				{Delay 50}
+				{Grid.grid forget(HandleMissile)}
+				{Animation Grid State T}
+			end
+		end
+	in
+		fun{DrawSonar}
+			fun{$ Grid State}
+				ID HandleScore Handle Mine Path NewMine PtPath LastPos
+				in
+				guiPlayer(id:ID score:HandleScore submarine:Handle mines:Mine path:Path lastPos:LastPos) = State
+				PtPath = {GetPath pt(x:5 y:5)}
+				{Animation Grid State PtPath}
+				State
+			end
+		end
+	end
 
 	local
 		proc{Drawline ID Drone Grid N}
@@ -436,7 +484,7 @@ in
 			{DrawDrone ID Drone Grid}
 			{TreatStream T Grid State}
 		[] sonar(ID)|T then
-			{TreatStream T Grid State}
+			{TreatStream T Grid {StateModification Grid ID State {DrawSonar}}}
 		[] _|T then
 			{TreatStream T Grid State}
 		end

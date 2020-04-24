@@ -272,6 +272,7 @@ define
                     in
                     {TreatSonarMessage PlayersList 1}
                     NextState = State
+					{Send GUIPORT sonar(ID_Fire)}
                 else
                     NextState = State
                 end
