@@ -427,8 +427,8 @@ define
          Handle the simultaneous game
         */
 
-            proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end
-            /* proc{SimulateThinking} {Delay 5} end */
+            /* proc{SimulateThinking} {Delay Input.thinkMin + ({OS.rand} mod (Input.thinkMax - Input.thinkMin))} end */
+            proc{SimulateThinking} {Delay 5} end
 
             proc{Step Player N Obs}
                 Answer
@@ -464,7 +464,12 @@ define
 
                 {Send SIMPORT isTerminated(N Answer)}
                 {Wait Answer}
-                if {Not Answer} then {Step Player N MineState} end
+                if {Not Answer}
+                then
+                    {Step Player N MineState}
+                else
+                    {Thread.terminate {Thread.this}}
+                end
             end
 
             proc{LaunchEachThread List Obs N}
@@ -490,10 +495,10 @@ define
                     UpdatedPlayerState = {Record.adjoinList GameState.N [dead#true]}
                     UpdatedGameState = {Record.adjoinList GameState [alives#GameState.alives-1 N#UpdatedPlayerState]}
                     {SynchroEndGame T UpdatedGameState}
-                [] get(EndGame)|T then
+                [] get(?EndGame)|T then
                     EndGame = GameState.alives < 2
                     {SynchroEndGame T GameState}
-                [] getState(State)|T then
+                [] getState(?State)|T then
                     State = GameState
                     {SynchroEndGame T GameState}
                 [] amIDead(N ?Answer)|T then
@@ -514,8 +519,8 @@ define
 
         FirstState
    in
-        FirstState = {Reset}
-        SIMPORT = {Port.new SimStream}
+        FirstState = {Reset} % Get the first state
+        SIMPORT = {Port.new SimStream} % Get the sharing port for game state
         if (Input.isTurnByTurn) then
             {LoopTurnByTurn FirstState}
         else
@@ -530,11 +535,10 @@ in
 /*      MAIN      */
 /******************/
 
-    % Create the window
-    GUIPORT = {GUI.portWindow}
-    {Send GUIPORT buildWindow}
+    GUIPORT = {GUI.portWindow} % Create the window
+    {Send GUIPORT buildWindow} % Get the port of the GUI window and create it
 
-    PlayersList = {CreatePlayers}
+    PlayersList = {CreatePlayers} % Get the players list
     {InitPlayers PlayersList}
     {LaunchGame}
 end
